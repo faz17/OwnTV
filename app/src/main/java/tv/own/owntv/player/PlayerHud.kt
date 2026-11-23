@@ -101,10 +101,20 @@ internal enum class HudDialog { NONE, AUDIO, SUBS, SPEED, ZOOM, QUALITY, VOLUME,
  * [load] is read as the list opens, never on a zap; [playingId] marks the one on screen; [onPick]
  * tunes the pick through Live TV's normal tune.
  */
+/**
+ * Optional server-side source selector. Injected only after the user has enabled a
+ * trusted Dispatcharr connection; otherwise the normal Sources menu is unchanged.
+ */
+class HudDispatcharrSources(
+    val load: suspend () -> tv.own.owntv.core.dispatcharr.DispatcharrApi.ChannelSources,
+    val onPick: suspend (Int) -> Unit,
+)
+
 class HudSources(
     val load: suspend () -> List<tv.own.owntv.core.live.ChannelVersion>,
     val playingId: Long,
     val onPick: (tv.own.owntv.core.database.entity.ChannelEntity) -> Unit,
+    val dispatcharr: HudDispatcharrSources? = null,
 )
 
 /** The guide's answer for "Go back to…"'s first row; held in a box so "answered: no row" differs from "not answered yet". */
