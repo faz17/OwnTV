@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dispatcharr_title" translatable="false">Dispatcharr</string>
+    <string name="dispatcharr_loading">Loading sources…</string>
+    <string name="dispatcharr_load_error">Could not read Dispatcharr sources</string>
+    <string name="dispatcharr_sources_hint">Switch the upstream without leaving the channel</string>
+    <string name="dispatcharr_provider">Provider #%1$d</string>
+    <string name="dispatcharr_switching">Switching…</string>
+    <string name="dispatcharr_active">Active</string>
+    <string name="dispatcharr_switch_error">Could not switch Dispatcharr source</string>
+    <string name="dispatcharr_playlist_alternatives">Other OwnTV playlist versions</string>
+</resources>

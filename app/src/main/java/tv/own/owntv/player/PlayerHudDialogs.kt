@@ -359,7 +359,7 @@ internal fun SourcesDialog(sources: HudSources, onDismiss: () -> Unit) {
     val focus = remember { FocusRequester() }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var switchingStreamId by remember { mutableStateOf<Int?>(null) }
-    var switchError by remember { mutableStateOf<String?>(null) }
+    var switchError by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { requestFocusRetrying(focus) }
     BackHandler { if (switchingStreamId == null) onDismiss() }
     val separator = stringResource(R.string.content_epg_bits_separator)
@@ -370,11 +370,11 @@ internal fun SourcesDialog(sources: HudSources, onDismiss: () -> Unit) {
         if (dispatcharr != null) {
             item {
                 tv.own.owntv.ui.stage.StagePopupOption(
-                    title = "Dispatcharr",
+                    title = stringResource(R.string.dispatcharr_title),
                     subtitle = when {
-                        remote == null -> "Loading sources…"
-                        remote?.isFailure == true -> "Could not read sources"
-                        else -> "Switch upstream without leaving this channel"
+                        remote == null -> stringResource(R.string.dispatcharr_loading)
+                        remote?.isFailure == true -> stringResource(R.string.dispatcharr_load_error)
+                        else -> stringResource(R.string.dispatcharr_sources_hint)
                     },
                     enabled = false,
                     onClick = {},
@@ -387,10 +387,10 @@ internal fun SourcesDialog(sources: HudSources, onDismiss: () -> Unit) {
                     val active = source.id == remoteStreams.activeStreamId
                     tv.own.owntv.ui.stage.StagePopupOption(
                         title = source.name,
-                        subtitle = source.providerAccountId?.let { "Provider #$it" },
+                        subtitle = source.providerAccountId?.let { stringResource(R.string.dispatcharr_provider, it) },
                         value = when {
-                            switchingStreamId == source.id -> "Switching…"
-                            active -> "Active"
+                            switchingStreamId == source.id -> stringResource(R.string.dispatcharr_switching)
+                            active -> stringResource(R.string.dispatcharr_active)
                             else -> null
                         },
                         chosen = active,
@@ -399,29 +399,28 @@ internal fun SourcesDialog(sources: HudSources, onDismiss: () -> Unit) {
                         onClick = {
                             if (!active && switchingStreamId == null) {
                                 switchingStreamId = source.id
-                                switchError = null
+                                switchError = false
                                 scope.launch {
                                     val result = runCatching { dispatcharr.onPick(source.id) }
                                     switchingStreamId = null
                                     if (result.isSuccess) onDismiss()
-                                    else switchError = result.exceptionOrNull()?.localizedMessage
-                                        ?: "Switch failed"
+                                    else switchError = true
                                 }
                             }
                         },
                     )
                 }
             }
-            if (switchError != null) item {
+            if (switchError) item {
                 tv.own.owntv.ui.stage.StagePopupOption(
-                    title = "Dispatcharr: ${switchError.orEmpty()}",
+                    title = stringResource(R.string.dispatcharr_switch_error),
                     enabled = false,
                     onClick = {},
                 )
             }
             item {
                 tv.own.owntv.ui.stage.StagePopupOption(
-                    title = "OwnTV playlist alternatives",
+                    title = stringResource(R.string.dispatcharr_playlist_alternatives),
                     enabled = false,
                     onClick = {},
                 )
