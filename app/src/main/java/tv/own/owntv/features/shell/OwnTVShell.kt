@@ -180,6 +180,20 @@ fun OwnTVShell(
     var trendingSearchActive by remember { mutableStateOf(false) }
     val player = koinInject<OwnTVPlayer>()
     val channelVersions = koinInject<tv.own.owntv.core.live.ChannelVersions>()
+    // Optional Dispatcharr integration. Admin credentials remain in Android Keystore,
+    // not in playlist sources, the APK or the Git repository.
+    val dispatcharrContext = androidx.compose.ui.platform.LocalContext.current
+    val dispatcharrStore = remember(dispatcharrContext) {
+        tv.own.owntv.features.settings.DispatcharrConnectionStore.get(dispatcharrContext)
+    }
+    val dispatcharrConnection by dispatcharrStore.connection.collectAsStateWithLifecycle()
+    val dispatcharrHttp = remember { okhttp3.OkHttpClient.Builder()
+        .callTimeout(12, java.util.concurrent.TimeUnit.SECONDS).build() }
+    val dispatcharrApi = remember(dispatcharrConnection, dispatcharrHttp) {
+        dispatcharrConnection?.let {
+            tv.own.owntv.core.dispatcharr.DispatcharrApi(dispatcharrHttp, it.origin, it.apiKey)
+        }
+    }
     // Docked mini-player size (% of screen width) + position, configurable in Settings and from the
     // mini-player's own controls. Read straight from settings so both entry points stay in sync.
     val settingsRepo = koinInject<tv.own.owntv.core.settings.SettingsRepository>()
@@ -1870,7 +1884,23 @@ fun OwnTVShell(
                     // The channel's other versions, read when the button is pressed; a pick is an
                     // ordinary tune, the same as picking it in the channel list.
                     sources = previewChannel?.takeIf { isTunedLive }?.let { ch ->
-                        tv.own.owntv.player.HudSources(load = { channelVersions.of(ch) }, playingId = ch.id, onPick = liveVm::ensurePlaying)
+                        val api = dispatcharrApi
+                        val server = dispatcharrConnection?.origin
+                        val remote = if (api != null && server != null &&
+                            (tv.own.owntv.core.dispatcharr.DispatcharrChannelUrls.parseForServer(ch.streamUrl, server) != null ||
+                                tv.own.owntv.core.dispatcharr.DispatcharrXtreamChannelUrls.parseForServer(ch.streamUrl, server) != null)
+                        ) {
+                            tv.own.owntv.player.HudDispatcharrSources(
+                                load = { api.sourcesFor(ch.streamUrl) },
+                                onPick = { streamId -> api.switch(ch.streamUrl, streamId) },
+                            )
+                        } else null
+                        tv.own.owntv.player.HudSources(
+                            load = { channelVersions.of(ch) },
+                            playingId = ch.id,
+                            onPick = liveVm::ensurePlaying,
+                            dispatcharr = remote,
+                        )
                     },
                     modifier = Modifier.fillMaxSize(),
                 )

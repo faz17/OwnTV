@@ -106,7 +106,7 @@ import tv.own.owntv.ui.theme.primary
 
 internal enum class TileTone { PRIMARY, SECONDARY, TERTIARY }
 
-private enum class SettingsTab { ROOT, LANGUAGE, SOURCES, EPG, BACKUP, LOCAL_SYNC, CUSTOMIZE, HOME, NETWORK, DNS, METADATA, OPEN_SUBTITLES, WEATHER, CH_NAV, PANEL_WIDTH, GUIDE_WIDTH, GLASS_EFFECT, CONTENT_MENUS, FONTS, BROWSING, SUBTITLE_STYLE, SPORTS }
+private enum class SettingsTab { ROOT, LANGUAGE, SOURCES, EPG, BACKUP, LOCAL_SYNC, CUSTOMIZE, HOME, NETWORK, DISPATCHARR, DNS, METADATA, OPEN_SUBTITLES, WEATHER, CH_NAV, PANEL_WIDTH, GUIDE_WIDTH, GLASS_EFFECT, CONTENT_MENUS, FONTS, BROWSING, SUBTITLE_STYLE, SPORTS }
 
 @Composable
 private fun epgShiftLabel(minutes: Int): String {
@@ -413,6 +413,7 @@ fun SettingsScreen(
         SettingsTab.CUSTOMIZE -> { CustomizeScreen(onBack = { tab = SettingsTab.ROOT }, modifier = modifier) }
         SettingsTab.HOME -> { HomeSettingsScreen(onBack = { tab = SettingsTab.ROOT }, modifier = modifier) }
         SettingsTab.NETWORK -> { tv.own.owntv.features.settings.NetworkSettingsScreen(onBack = { tab = SettingsTab.ROOT }, modifier = modifier) }
+        SettingsTab.DISPATCHARR -> { tv.own.owntv.features.settings.DispatcharrSettingsScreen(onBack = { tab = SettingsTab.ROOT }, modifier = modifier) }
         SettingsTab.DNS -> { tv.own.owntv.features.settings.DnsSettingsScreen(onBack = { tab = SettingsTab.ROOT }, modifier = modifier) }
         SettingsTab.METADATA -> { tv.own.owntv.features.settings.MetadataSettingsScreen(onBack = { tab = SettingsTab.ROOT }, modifier = modifier) }
         SettingsTab.OPEN_SUBTITLES -> { tv.own.owntv.features.settings.OpenSubtitlesAccountScreen(onBack = { tab = SettingsTab.ROOT }, modifier = modifier) }
@@ -789,6 +790,13 @@ fun SettingsScreen(
             title = stringResource(R.string.common_proxy), desc = stringResource(R.string.settings_proxy_description),
             focus = rowFocus.getValue(SettingsTab.NETWORK),
             onClick = { open(SettingsTab.NETWORK) },
+        ),
+        RootRow(
+            tabRowKey(SettingsTab.DISPATCHARR), TileTone.SECONDARY, OwnTVIcon.NETWORK,
+            title = stringResource(R.string.dispatcharr_settings_title),
+            desc = stringResource(R.string.dispatcharr_settings_description),
+            focus = rowFocus.getValue(SettingsTab.DISPATCHARR),
+            onClick = { open(SettingsTab.DISPATCHARR) },
         ),
         RootRow(
             tabRowKey(SettingsTab.DNS), TileTone.SECONDARY, OwnTVIcon.DNS,

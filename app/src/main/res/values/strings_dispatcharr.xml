@@ -9,4 +9,16 @@
     <string name="dispatcharr_active">Active</string>
     <string name="dispatcharr_switch_error">Could not switch Dispatcharr source</string>
     <string name="dispatcharr_playlist_alternatives">Other OwnTV playlist versions</string>
+    <string name="dispatcharr_settings_title" translatable="false">Dispatcharr</string>
+    <string name="dispatcharr_settings_description">Configure upstream source switching</string>
+    <string name="dispatcharr_server_url">Server HTTPS address</string>
+    <string name="dispatcharr_url_hint">https://your-dispatcharr-server.example</string>
+    <string name="dispatcharr_api_key">Administrator API key</string>
+    <string name="dispatcharr_save">Save connection</string>
+    <string name="dispatcharr_remove">Remove connection</string>
+    <string name="dispatcharr_invalid_config">Enter a valid HTTPS server URL and API key</string>
+    <string name="dispatcharr_config_saved">Saved on this device</string>
+    <string name="dispatcharr_config_hint">The key stays encrypted on this device</string>
+    <string name="dispatcharr_not_configured">Not configured</string>
+    <string name="dispatcharr_configured">Connection configured</string>
 </resources>
