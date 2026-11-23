@@ -310,7 +310,6 @@
 1	technical	app/src/main/java/tv/own/owntv/features/settings/DeveloperScreen.kt	Forces a fresh TMDB trending download for every playlist, ignoring the multi-day fetch timer.
 1	technical	app/src/main/java/tv/own/owntv/features/settings/DeveloperScreen.kt	Rebuild Now Trending
 1	uri	app/src/main/java/tv/own/owntv/features/settings/DispatcharrConnectionStore.kt	/
-1	empty	app/src/main/java/tv/own/owntv/features/settings/DispatcharrConnectionStore.kt	\0
 1	technical	app/src/main/java/tv/own/owntv/features/settings/DispatcharrConnectionStore.kt	AES/GCM/NoPadding
 2	technical	app/src/main/java/tv/own/owntv/features/settings/DispatcharrConnectionStore.kt	AndroidKeyStore
 1	preference-key	app/src/main/java/tv/own/owntv/features/settings/DispatcharrConnectionStore.kt	dispatcharr_private_connection
