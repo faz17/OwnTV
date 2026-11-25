@@ -16,11 +16,19 @@ enum class BackupError { EXPORT, READ, IMPORT }
 
 class BackupViewModel(
     private val backup: BackupManager,
+    private val context: android.content.Context,
     private val profileDao: tv.own.owntv.core.database.dao.ProfileDao,
     private val settings: tv.own.owntv.core.settings.SettingsRepository,
     private val companion: tv.own.owntv.core.companion.CompanionController,
     private val protection: tv.own.owntv.core.profile.ProfileProtection,
 ) : ViewModel() {
+    init {
+        val store = DispatcharrConnectionStore.get(context)
+        backup.registerSupplementarySecret(object : BackupManager.SupplementarySecret {
+            override fun export(): String? = store.exportBackupJson()
+            override fun restore(value: String) = store.restoreBackupJson(value)
+        })
+    }
 
     // ---- Remote restore: another device uploads a backup JSON to the TV over the LAN companion server. ----
     /** Server lifecycle (Idle / Starting / Listening with PIN+QR / Failed) for the remote-restore panel. */
