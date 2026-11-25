@@ -40,6 +40,16 @@ class DispatcharrConnectionStore private constructor(context: Context) {
         _connection.value = Connection(normalized, apiKey.trim())
     }
 
+    /** Exported only inside a password-encrypted Settings backup. */
+    fun exportBackupJson(): String? = _connection.value?.let {
+        JSONObject().put("origin", it.origin).put("key", it.apiKey).toString()
+    }
+
+    fun restoreBackupJson(value: String) {
+        val json = JSONObject(value)
+        save(json.getString("origin"), json.getString("key"))
+    }
+
     fun clear() {
         check(preferences.edit().remove(ENTRY).commit())
         _connection.value = null
