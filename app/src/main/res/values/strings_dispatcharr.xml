@@ -21,4 +21,9 @@
     <string name="dispatcharr_config_hint">The key stays encrypted on this device</string>
     <string name="dispatcharr_not_configured">Not configured</string>
     <string name="dispatcharr_configured">Connection configured</string>
+    <string name="dispatcharr_test">Test saved API connection</string>
+    <string name="dispatcharr_testing">Testing connection…</string>
+    <string name="dispatcharr_test_success">API connection successful</string>
+    <string name="dispatcharr_test_failed">API connection failed</string>
+    <string name="dispatcharr_test_hint">Check the saved server and API key</string>
 </resources>

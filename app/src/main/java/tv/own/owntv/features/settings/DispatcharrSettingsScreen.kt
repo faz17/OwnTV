@@ -5,8 +5,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
+import tv.own.owntv.core.dispatcharr.DispatcharrApi
+import java.util.concurrent.TimeUnit
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -29,6 +34,10 @@ fun DispatcharrSettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier)
     var apiKey by remember { mutableStateOf("") }
     var saveFailed by remember { mutableStateOf(false) }
     var savedOk by remember { mutableStateOf(false) }
+    var testing by remember { mutableStateOf(false) }
+    var testResult by remember { mutableStateOf<Result<Unit>?>(null) }
+    val scope = rememberCoroutineScope()
+    val client = remember { OkHttpClient.Builder().callTimeout(12, TimeUnit.SECONDS).build() }
     val rowsFocus = remember { FocusRequester() }
 
     LaunchedEffect(saved) {
@@ -43,7 +52,7 @@ fun DispatcharrSettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier)
     StageFullPage(
         parents = listOf(stringResource(R.string.settings_group_network)),
         title = stringResource(R.string.dispatcharr_settings_title),
-        count = pluralStringResource(R.plurals.settings_setting_count, 4, 4),
+        count = pluralStringResource(R.plurals.settings_setting_count, 5, 5),
         onBack = onBack,
         modifier = modifier,
         rowsFocus = rowsFocus,
@@ -73,7 +82,32 @@ fun DispatcharrSettingsScreen(onBack: () -> Unit, modifier: Modifier = Modifier)
             value = null,
             onClick = {
                 saveFailed = runCatching { store.save(url, apiKey) }.isFailure
+                testResult = null
                 savedOk = !saveFailed
+            },
+        )
+        StageSettingRow(
+            icon = OwnTVIcon.NETWORK,
+            title = stringResource(R.string.dispatcharr_test),
+            desc = when {
+                testing -> stringResource(R.string.dispatcharr_testing)
+                testResult?.isSuccess == true -> stringResource(R.string.dispatcharr_test_success)
+                testResult?.isFailure == true -> stringResource(R.string.dispatcharr_test_failed)
+                else -> stringResource(R.string.dispatcharr_test_hint)
+            },
+            value = null,
+            onClick = {
+                val connection = saved
+                if (connection != null && !testing) {
+                    testing = true
+                    testResult = null
+                    scope.launch {
+                        testResult = runCatching {
+                            DispatcharrApi(client, connection.origin, connection.apiKey).verifyConnection()
+                        }
+                        testing = false
+                    }
+                }
             },
         )
         StageSettingRow(
