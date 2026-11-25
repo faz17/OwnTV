@@ -387,7 +387,7 @@ internal fun SourcesDialog(sources: HudSources, onDismiss: () -> Unit) {
                     val active = source.id == remoteStreams.activeStreamId
                     tv.own.owntv.ui.stage.StagePopupOption(
                         title = source.name,
-                        subtitle = source.providerAccountId?.let { stringResource(R.string.dispatcharr_provider, it) },
+                        subtitle = source.providerAccountName ?: source.providerAccountId?.let { stringResource(R.string.dispatcharr_provider, it) },
                         value = when {
                             switchingStreamId == source.id -> stringResource(R.string.dispatcharr_switching)
                             active -> stringResource(R.string.dispatcharr_active)
@@ -418,7 +418,7 @@ internal fun SourcesDialog(sources: HudSources, onDismiss: () -> Unit) {
                     onClick = {},
                 )
             }
-            item {
+            if (remote != null) item {
                 tv.own.owntv.ui.stage.StagePopupOption(
                     title = stringResource(R.string.dispatcharr_playlist_alternatives),
                     enabled = false,
@@ -426,7 +426,7 @@ internal fun SourcesDialog(sources: HudSources, onDismiss: () -> Unit) {
                 )
             }
         }
-        items(list.size) { index ->
+        if (dispatcharr == null || remote != null) items(list.size) { index ->
             val v = list[index]
             val playing = v.channel.id == sources.playingId
             tv.own.owntv.ui.stage.StagePopupOption(
