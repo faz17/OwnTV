@@ -11,7 +11,7 @@ on:
       - main
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: dispatcharr-apk-${{ github.ref }}
@@ -55,15 +55,85 @@ jobs:
         working-directory: OwnTV_Core
         run: |
           chmod +x ./gradlew
-          ./gradlew :core:testDebugUnitTest :player-core:testDebugUnitTest --stacktrace --no-daemon
+          set -o pipefail
+          for attempt in 1 2 3; do
+            if ./gradlew :core:testDebugUnitTest :player-core:testDebugUnitTest --console=plain --no-daemon 2>&1 | tee core-test.log; then
+              break
+            fi
+            if [ "$attempt" -lt 3 ] && grep -Eq 'status code 429|Too Many Requests' core-test.log; then
+              echo "::warning::Maven Central HTTP 429: retry $((attempt + 1))/3"
+              sleep $((attempt * 30))
+            else
+              exit 1
+            fi
+          done
+
+      # PRs stay testable without secrets; only branch pushes can publish signed APKs.
+      - name: Prepare permanent TV signing certificate
+        if: github.event_name == 'push'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::warning::TV repository signing secrets missing; build APK for Actions only, do not publish a Fire TV release."
+            echo "TV_SIGNING_READY=false" >> "$GITHUB_ENV"
+          else
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/owntv-tv-signing.keystore"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/owntv-tv-signing.keystore" >> "$GITHUB_ENV"
+            echo "OWNTV_SIGN_DEBUG_WITH_RELEASE_KEY=true" >> "$GITHUB_ENV"
+            echo "TV_SIGNING_READY=true" >> "$GITHUB_ENV"
+          fi
 
       - name: Compile Android TV debug APK against local Core
         working-directory: OwnTV
         env:
           CORE_DIR: ${{ github.workspace }}/OwnTV_Core
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
+          echo "VERSION_CODE=$((200000 + ${GITHUB_RUN_NUMBER}))" >> "$GITHUB_ENV"
+          export VERSION_CODE=$((200000 + ${GITHUB_RUN_NUMBER}))
+          export VERSION_NAME="0.99.${GITHUB_RUN_NUMBER}"
           ./gradlew :app:assembleStandardDebug "-Powntv.corePath=$CORE_DIR" --stacktrace --no-daemon
+
+      - name: Verify TV APK signature
+        if: github.event_name == 'push' && env.TV_SIGNING_READY == 'true'
+        run: |
+          set -euo pipefail
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          APK=$(find OwnTV/app/build/outputs/apk/standard/debug -name '*.apk' -type f | head -n 1)
+          test -n "$APKSIGNER" && test -n "$APK"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+      - name: Prepare Fire TV direct-download APK
+        if: github.event_name == 'push' && env.TV_SIGNING_READY == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          APK=$(find OwnTV/app/build/outputs/apk/standard/debug -name '*.apk' -type f | head -n 1)
+          cp "$APK" dist/OwnTV-Dispatcharr-FireTV.apk
+
+      - name: Publish Fire TV preview release for Downloader
+        if: github.event_name == 'push' && env.TV_SIGNING_READY == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: dispatcharr-tv-preview
+          target_commitish: ${{ github.sha }}
+          name: OwnTV Android TV - Dispatcharr preview
+          prerelease: true
+          make_latest: false
+          files: dist/OwnTV-Dispatcharr-FireTV.apk
+          overwrite_files: true
+          body: |
+            Experimental Android TV / Fire Stick build from feature/dispatcharr-source-switch.
+            Signed with the repository's permanent certificate. The asset can be downloaded
+            directly on Fire TV using Downloader.
 
       - name: Upload experimental APK
         uses: actions/upload-artifact@v4
