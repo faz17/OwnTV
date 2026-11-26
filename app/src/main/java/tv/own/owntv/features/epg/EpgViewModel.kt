@@ -240,8 +240,8 @@ class EpgViewModel(
                 val api = remoteDvrApi ?: return@launch
                 val now = System.currentTimeMillis()
                 if (programme.stopMs <= now) return@launch
-                val (start, end) = recordings.windowFor(programme.startMs, programme.stopMs)
-                runCatching { api.scheduleServerRecording(channel.streamUrl, start, end) }
+                val window = recordings.windowFor(programme.startMs, programme.stopMs)
+                runCatching { api.scheduleServerRecording(channel.streamUrl, window.first, window.last) }
                     .onSuccess { refreshServerDvr() }
                 return@launch
             }
