@@ -221,6 +221,7 @@ fun OwnTVShell(
     val navSize by settingsRepo.navSize.collectAsStateWithLifecycle(initialValue = tv.own.owntv.core.settings.SettingsRepository.NavSize.COMPACT)
     val navWiden by settingsRepo.navWiden.collectAsStateWithLifecycle(initialValue = null)
     val navLength by settingsRepo.navLength.collectAsStateWithLifecycle(initialValue = tv.own.owntv.core.settings.SettingsRepository.NavLength.FIT)
+    val navOrder by settingsRepo.navMenuOrder.collectAsStateWithLifecycle(initialValue = MainSection.browseOrder)
     val navHideAfterMs by settingsRepo.navHideAfterMs.collectAsStateWithLifecycle(
         initialValue = tv.own.owntv.core.settings.SettingsRepository.NavHideAfter.DEFAULT_MS,
     )
@@ -1419,6 +1420,17 @@ fun OwnTVShell(
                             modifier = Modifier.fillMaxSize(),
                         )
 
+                        selectedSection == MainSection.RECORDINGS -> DownloadsScreen(
+                            onFullscreen = { openFullscreen() },
+                            onChildFocused = { focusedLayer = ShellLayer.CONTENT },
+                            onOpenGuide = { onSelectSection(MainSection.EPG) },
+                            restoreFocus = restoreFocus,
+                            onRestored = { restoreFocus = false },
+                            onEntryHook = { downloadsEntry = it },
+                            contentStart = if (navStyle == tv.own.owntv.core.settings.SettingsRepository.NavStyle.DOCKED) 64.mpx else 150.mpx,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+
                         selectedSection == MainSection.DOWNLOADS -> DownloadsScreen(
                             onFullscreen = { openFullscreen() },
                             onChildFocused = { focusedLayer = ShellLayer.CONTENT },
@@ -1498,6 +1510,7 @@ fun OwnTVShell(
                 length = navLength,
                 selected = selectedSection,
                 visibleSections = visibleSections,
+                navOrder = navOrder,
                 onSelect = selectFromNav,
                 count = { section -> railCounts[section]?.takeIf { it > 0 } },
                 detail = { section -> railDetail(section, railDetails) },
@@ -1513,7 +1526,7 @@ fun OwnTVShell(
                     MainSection.HOME -> homeEntry
                     MainSection.EPG, MainSection.LIVE_TV -> guideEntry
                     MainSection.MOVIES, MainSection.SERIES -> vodEntry
-                    MainSection.DOWNLOADS -> downloadsEntry
+                    MainSection.DOWNLOADS, MainSection.RECORDINGS -> downloadsEntry
                     MainSection.SEARCH -> searchEntry
                     MainSection.MORE -> moreEntry
                     MainSection.SPORTS -> sportsEntry

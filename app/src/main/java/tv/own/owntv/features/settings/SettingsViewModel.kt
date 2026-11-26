@@ -884,6 +884,26 @@ class SettingsViewModel(
         viewModelScope.launch { settings.setNavHideAfterMs(ms) }
     }
 
+    /** Saved order is shared with Mobile. */
+    val navMenuOrder: StateFlow<List<tv.own.owntv.core.nav.MainSection>> =
+        settings.navMenuOrder.stateIn(
+            viewModelScope, SharingStarted.WhileSubscribed(5_000),
+            tv.own.owntv.core.nav.MainSection.browseOrder,
+        )
+
+    fun moveNavSection(section: tv.own.owntv.core.nav.MainSection, shift: Int) {
+        viewModelScope.launch {
+            val entries = settings.navMenuOrder.first().toMutableList()
+            val from = entries.indexOf(section)
+            if (from < 0) return@launch
+            val to = (from + shift).coerceIn(0, entries.lastIndex)
+            if (from != to) {
+                entries.add(to, entries.removeAt(from))
+                settings.setNavMenuOrder(entries)
+            }
+        }
+    }
+
     /** Browse sections the user has hidden (STATIC mode only). */
     val navMenuHidden: StateFlow<Set<tv.own.owntv.core.nav.MainSection>> = settings.navMenuHidden
         .map { raw -> raw.mapNotNull { name -> runCatching { tv.own.owntv.core.nav.MainSection.valueOf(name) }.getOrNull() }.toSet() }
