@@ -119,6 +119,17 @@ jobs:
           APK=$(find OwnTV/app/build/outputs/apk/standard/debug -name '*.apk' -type f | head -n 1)
           cp "$APK" dist/OwnTV-Dispatcharr-FireTV.apk
 
+      # Preserve the signed installer even if publishing a GitHub Release fails.
+      # The Actions artifact is a ZIP, not a direct Downloader URL.
+      - name: Upload signed Fire TV APK
+        if: github.event_name == 'push' && env.TV_SIGNING_READY == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: OwnTV-Dispatcharr-FireTV-signed
+          path: dist/OwnTV-Dispatcharr-FireTV.apk
+          if-no-files-found: error
+          retention-days: 30
+
       - name: Publish Fire TV preview release for Downloader
         if: github.event_name == 'push' && env.TV_SIGNING_READY == 'true'
         uses: softprops/action-gh-release@v3
