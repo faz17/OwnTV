@@ -2,7 +2,8 @@ package tv.own.owntv.features.settings
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -52,6 +53,8 @@ fun NavigationSettingsPopup(
     menuMode: NavMenuMode,
     onMenuMode: (NavMenuMode) -> Unit,
     hiddenSections: Set<MainSection>,
+    navOrder: List<MainSection>,
+    onMoveSection: (MainSection, Int) -> Unit,
     onSectionHidden: (MainSection, Boolean) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -114,21 +117,39 @@ fun NavigationSettingsPopup(
             onClick = { onMenuMode(if (static) NavMenuMode.DYNAMIC else NavMenuMode.STATIC) },
             leading = { OwnTVIcon(OwnTVIcon.GRID, StageColors.Text, Modifier.size(21.mpx)) },
         )
-        // Static: the browse sections as toggles, in rail order; Search and More can never be hidden.
-        if (static) {
-            FlowRow(
-                Modifier.padding(start = 61.mpx, end = 22.mpx, top = 6.mpx, bottom = 14.mpx),
-                horizontalArrangement = Arrangement.spacedBy(12.mpx),
-                verticalArrangement = Arrangement.spacedBy(12.mpx),
-            ) {
-                MenuSections.forEach { (section, icon) ->
-                    val shown = section !in hiddenSections
+        // D-pad cannot drag: the same six-square reorder control is represented by
+        // adjacent square Up/Down buttons, usable with a television remote.
+        Text(
+            stringResource(R.string.dispatcharr_nav_reorder_title),
+            modifier = Modifier.padding(start = 61.mpx, top = 8.mpx, bottom = 9.mpx),
+        )
+        Column(Modifier.padding(start = 61.mpx, end = 22.mpx, bottom = 14.mpx),
+            verticalArrangement = Arrangement.spacedBy(8.mpx)) {
+            navOrder.forEachIndexed { index, section ->
+                val visible = section !in hiddenSections
+                val toggleable = static && section != MainSection.HOME
+                val icon = MenuSections.firstOrNull { it.first == section }?.second ?: OwnTVIcon.GRID
+                Row(horizontalArrangement = Arrangement.spacedBy(9.mpx)) {
                     StagePill(
                         text = stringResource(section.labelRes),
-                        onClick = { onSectionHidden(section, shown) },
+                        onClick = { if (toggleable) onSectionHidden(section, visible) },
                         icon = icon,
-                        trailingIcon = if (shown) OwnTVIcon.CHECK else OwnTVIcon.EYE_OFF,
-                        dimmed = !shown,
+                        trailingIcon = if (static) (if (visible) OwnTVIcon.CHECK else OwnTVIcon.EYE_OFF) else null,
+                        enabled = toggleable,
+                        dimmed = static && !visible,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StagePill(
+                        text = stringResource(R.string.dispatcharr_nav_move_up),
+                        onClick = { onMoveSection(section, -1) },
+                        icon = OwnTVIcon.CHEVRON_UP,
+                        enabled = index > 0,
+                    )
+                    StagePill(
+                        text = stringResource(R.string.dispatcharr_nav_move_down),
+                        onClick = { onMoveSection(section, 1) },
+                        icon = OwnTVIcon.CHEVRON_DOWN,
+                        enabled = index < navOrder.lastIndex,
                     )
                 }
             }
@@ -160,6 +181,7 @@ private val MenuSections = listOf(
     MainSection.MOVIES to OwnTVIcon.MOVIES,
     MainSection.SERIES to OwnTVIcon.SERIES,
     MainSection.DOWNLOADS to OwnTVIcon.DOWNLOADS,
+    MainSection.RECORDINGS to OwnTVIcon.REC,
 )
 
 internal val NavSize.labelRes: Int
