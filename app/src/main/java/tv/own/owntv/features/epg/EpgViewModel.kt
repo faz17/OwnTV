@@ -133,6 +133,78 @@ class EpgViewModel(
     /** The match scan itself — core's, so the television, the phone and the single-channel run agree. */
     private val autoMatcher = EpgAutoMatcher(channelDao, guideCandidates)
 
+    private var remoteDvrApi: tv.own.owntv.core.dispatcharr.DispatcharrApi? = null
+    private var remoteOrigin: String? = null
+    private val _remoteRows = MutableStateFlow<List<tv.own.owntv.core.dispatcharr.DispatcharrApi.ServerRecording>>(emptyList())
+    val remoteRecordings: StateFlow<List<tv.own.owntv.core.dispatcharr.DispatcharrApi.ServerRecording>> =
+        _remoteRows.asStateFlow()
+    private val remoteIdsByUuid = MutableStateFlow<Map<String, Int>>(emptyMap())
+    private val backend = settings.recordingBackend.stateIn(
+        viewModelScope, SharingStarted.Eagerly, SettingsRepository.RecordingBackend.AUTO,
+    )
+
+    fun usesServerDvr(): Boolean = when (backend.value) {
+        SettingsRepository.RecordingBackend.LOCAL -> false
+        SettingsRepository.RecordingBackend.DISPATCHARR -> true
+        SettingsRepository.RecordingBackend.AUTO -> remoteDvrApi != null
+    }
+
+    fun attachServerDvr(
+        api: tv.own.owntv.core.dispatcharr.DispatcharrApi?,
+        origin: String?,
+    ) {
+        remoteDvrApi = api
+        remoteOrigin = origin
+        refreshServerDvr()
+    }
+
+    fun refreshServerDvr() {
+        val api = remoteDvrApi
+        if (api == null || !usesServerDvr()) {
+            _remoteRows.value = emptyList()
+            remoteIdsByUuid.value = emptyMap()
+            return
+        }
+        viewModelScope.launch {
+            runCatching { api.serverRecordings() to api.serverChannelIdsByUuid() }
+                .onSuccess { (rows, ids) ->
+                    remoteIdsByUuid.value = ids
+                    _remoteRows.value = rows
+                }
+        }
+    }
+
+    fun remoteRecordingFor(
+        channel: ChannelEntity,
+        programme: EpgProgrammeEntity,
+    ): tv.own.owntv.core.dispatcharr.DispatcharrApi.ServerRecording? {
+        if (!usesServerDvr()) return null
+        val origin = remoteOrigin ?: return null
+        val numeric = tv.own.owntv.core.dispatcharr.DispatcharrXtreamChannelUrls
+            .parseForServer(channel.streamUrl, origin)?.channelId
+        val uuid = tv.own.owntv.core.dispatcharr.DispatcharrChannelUrls
+            .parseForServer(channel.streamUrl, origin)?.channelUuid
+        val remoteId = numeric ?: (uuid?.let { remoteIdsByUuid.value[it.lowercase(java.util.Locale.ROOT)] }
+            ?: return null)
+        val now = System.currentTimeMillis()
+        return _remoteRows.value.firstOrNull { row ->
+            row.channelId == remoteId &&
+                (row.isScheduled(now) || row.isActive(now)) &&
+                row.startMs <= programme.startMs + 5 * 60_000L &&
+                row.endMs >= programme.stopMs - 5 * 60_000L
+        }
+    }
+
+    fun stopOrCancelServerRecord(row: tv.own.owntv.core.dispatcharr.DispatcharrApi.ServerRecording) {
+        val api = remoteDvrApi ?: return
+        viewModelScope.launch {
+            runCatching {
+                if (row.isActive(System.currentTimeMillis())) api.stopServerRecording(row.id)
+                else api.cancelServerRecording(row.id)
+            }.onSuccess { refreshServerDvr() }
+        }
+    }
+
     // --- Recording, from the guide ---------------------------------------------------------------
 
     /**
@@ -164,6 +236,15 @@ class EpgViewModel(
      */
     fun record(channel: ChannelEntity, programme: EpgProgrammeEntity) {
         viewModelScope.launch {
+            if (usesServerDvr()) {
+                val api = remoteDvrApi ?: return@launch
+                val now = System.currentTimeMillis()
+                if (programme.stopMs <= now) return@launch
+                val (start, end) = recordings.windowFor(programme.startMs, programme.stopMs)
+                runCatching { api.scheduleServerRecording(channel.streamUrl, start, end) }
+                    .onSuccess { refreshServerDvr() }
+                return@launch
+            }
             val pid = currentProfileId() ?: return@launch
             val source = sourceDao.getById(channel.sourceId) ?: return@launch
             val now = System.currentTimeMillis()
@@ -205,7 +286,7 @@ class EpgViewModel(
      * within a catch-up channel's archive.
      */
     fun canRecord(channel: ChannelEntity, programme: EpgProgrammeEntity, now: Long): Boolean =
-        programme.stopMs > now || canCatchup(channel, programme, now)
+        programme.stopMs > now || (!usesServerDvr() && canCatchup(channel, programme, now))
 
     fun stopRecording(recording: tv.own.owntv.core.database.entity.RecordingEntity) =
         recordings.stop(recording)

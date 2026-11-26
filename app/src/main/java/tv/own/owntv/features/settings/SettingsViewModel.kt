@@ -725,6 +725,13 @@ class SettingsViewModel(
 
     // --- CH+- key paging (browse panels): master toggle + per-direction skip counts ---
     // --- Recording ---
+    val recordingBackend: StateFlow<SettingsRepository.RecordingBackend> =
+        settings.recordingBackend.stateIn(
+            viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsRepository.RecordingBackend.AUTO,
+        )
+    fun setRecordingBackend(value: SettingsRepository.RecordingBackend) {
+        viewModelScope.launch { settings.setRecordingBackend(value) }
+    }
     val recordWhatImWatching: StateFlow<Boolean> =
         settings.recordWhatImWatching.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     fun setRecordWhatImWatching(enabled: Boolean) { viewModelScope.launch { settings.setRecordWhatImWatching(enabled) } }

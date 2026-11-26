@@ -358,6 +358,8 @@ internal fun guideProgrammeActions(
     val favoriteIds by vm.favoriteChannelIds.collectAsStateWithLifecycle()
     val catchupPlayer by vm.catchupPlayer.collectAsStateWithLifecycle()
     val recording = remember(recordingRows, ch.id, p.startMs) { vm.recordingFor(ch, p) }
+    val remoteRows by vm.remoteRecordings.collectAsStateWithLifecycle()
+    val remote = remember(remoteRows, ch.id, p.startMs) { vm.remoteRecordingFor(ch, p) }
     val seriesRule by androidx.compose.runtime.produceState<tv.own.owntv.core.database.entity.RecordingRuleEntity?>(null, ch.id, p.title, recordingRows) {
         value = vm.seriesRuleFor(ch, p)
     }
@@ -373,20 +375,25 @@ internal fun guideProgrammeActions(
         catchupPlayer = catchupPlayer,
         onCatchupPlayer = vm::setCatchupPlayer,
         recordLabel = stringResource(
-            when (status) {
-                tv.own.owntv.core.model.RecordingStatus.RECORDING -> R.string.recording_stop
-                tv.own.owntv.core.model.RecordingStatus.SCHEDULED -> R.string.common_cancel
+            when {
+                remote?.isActive(now) == true -> R.string.recording_stop
+                remote != null -> R.string.common_cancel
+                status == tv.own.owntv.core.model.RecordingStatus.RECORDING -> R.string.recording_stop
+                status == tv.own.owntv.core.model.RecordingStatus.SCHEDULED -> R.string.common_cancel
                 else -> R.string.recording_record
             },
         ),
-        onRecord = when (status) {
-            tv.own.owntv.core.model.RecordingStatus.RECORDING -> ({ vm.stopRecording(recording) })
-            tv.own.owntv.core.model.RecordingStatus.SCHEDULED -> ({ vm.cancelRecording(recording) })
-            else -> if (upcoming) ({ vm.record(ch, p) }) else null
+        onRecord = when {
+            remote != null -> ({ vm.stopOrCancelServerRecord(remote) })
+            status == tv.own.owntv.core.model.RecordingStatus.RECORDING -> ({ vm.stopRecording(recording!!) })
+            status == tv.own.owntv.core.model.RecordingStatus.SCHEDULED -> ({ vm.cancelRecording(recording!!) })
+            upcoming -> ({ vm.record(ch, p) })
+            else -> null
         },
-        seriesActive = seriesRule != null,
-        onSeries = if (upcoming) ({ seriesRule?.let { vm.stopSeries(it) } ?: vm.recordSeries(ch, p) }) else null,
-        onRecordFromCatchup = if (!upcoming && canCatchup && recording == null) ({ vm.record(ch, p) }) else null,
+        seriesActive = seriesRule != null && !vm.usesServerDvr(),
+        onSeries = if (upcoming && !vm.usesServerDvr()) ({ seriesRule?.let { vm.stopSeries(it) } ?: vm.recordSeries(ch, p) }) else null,
+        onRecordFromCatchup = if (!vm.usesServerDvr() && !upcoming && canCatchup && recording == null)
+            ({ vm.record(ch, p) }) else null,
         isFavorite = ch.id in favoriteIds,
         onFavorite = { vm.toggleFavoriteChannel(ch) },
         onPickEpg = onPickEpg,

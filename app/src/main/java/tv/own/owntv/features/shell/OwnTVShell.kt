@@ -222,6 +222,14 @@ fun OwnTVShell(
     val navWiden by settingsRepo.navWiden.collectAsStateWithLifecycle(initialValue = null)
     val navLength by settingsRepo.navLength.collectAsStateWithLifecycle(initialValue = tv.own.owntv.core.settings.SettingsRepository.NavLength.FIT)
     val navOrder by settingsRepo.navMenuOrder.collectAsStateWithLifecycle(initialValue = MainSection.browseOrder)
+    val recorderBackend by settingsRepo.recordingBackend.collectAsStateWithLifecycle(
+        initialValue = tv.own.owntv.core.settings.SettingsRepository.RecordingBackend.AUTO,
+    )
+    val remoteDvrSelected = when (recorderBackend) {
+        tv.own.owntv.core.settings.SettingsRepository.RecordingBackend.LOCAL -> false
+        tv.own.owntv.core.settings.SettingsRepository.RecordingBackend.DISPATCHARR -> true
+        tv.own.owntv.core.settings.SettingsRepository.RecordingBackend.AUTO -> dispatcharrConnection != null
+    }
     val navHideAfterMs by settingsRepo.navHideAfterMs.collectAsStateWithLifecycle(
         initialValue = tv.own.owntv.core.settings.SettingsRepository.NavHideAfter.DEFAULT_MS,
     )
@@ -1420,16 +1428,25 @@ fun OwnTVShell(
                             modifier = Modifier.fillMaxSize(),
                         )
 
-                        selectedSection == MainSection.RECORDINGS -> DownloadsScreen(
-                            onFullscreen = { openFullscreen() },
-                            onChildFocused = { focusedLayer = ShellLayer.CONTENT },
-                            onOpenGuide = { onSelectSection(MainSection.EPG) },
-                            restoreFocus = restoreFocus,
-                            onRestored = { restoreFocus = false },
-                            onEntryHook = { downloadsEntry = it },
-                            contentStart = if (navStyle == tv.own.owntv.core.settings.SettingsRepository.NavStyle.DOCKED) 64.mpx else 150.mpx,
-                            modifier = Modifier.fillMaxSize(),
-                        )
+                        selectedSection == MainSection.RECORDINGS -> {
+                            if (remoteDvrSelected) {
+                                tv.own.owntv.features.recordings.DispatcharrTvRecordingsScreen(
+                                    api = dispatcharrApi,
+                                    player = player,
+                                    onFullscreen = { openFullscreen() },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else DownloadsScreen(
+                                onFullscreen = { openFullscreen() },
+                                onChildFocused = { focusedLayer = ShellLayer.CONTENT },
+                                onOpenGuide = { onSelectSection(MainSection.EPG) },
+                                restoreFocus = restoreFocus,
+                                onRestored = { restoreFocus = false },
+                                onEntryHook = { downloadsEntry = it },
+                                contentStart = if (navStyle == tv.own.owntv.core.settings.SettingsRepository.NavStyle.DOCKED) 64.mpx else 150.mpx,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
 
                         selectedSection == MainSection.DOWNLOADS -> DownloadsScreen(
                             onFullscreen = { openFullscreen() },

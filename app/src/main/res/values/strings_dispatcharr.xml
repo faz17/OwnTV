@@ -29,4 +29,13 @@
     <string name="dispatcharr_nav_reorder_title">Navigation order · use the square arrows to reorder</string>
     <string name="dispatcharr_nav_move_up">Up</string>
     <string name="dispatcharr_nav_move_down">Down</string>
+    <string name="dispatcharr_rec_backend_title">Destinazione registrazioni</string>
+    <string name="dispatcharr_rec_backend_description">Seleziona dove salvare le nuove registrazioni. Dispatcharr registra sul server anche quando la TV è spenta.</string>
+    <string name="dispatcharr_rec_backend_auto">Automatica (comportamento attuale)</string>
+    <string name="dispatcharr_rec_backend_local">OwnTV · sul dispositivo</string>
+    <string name="dispatcharr_rec_backend_server">Dispatcharr · sul server</string>
+    <string name="dispatcharr_record_failed">Impossibile avviare o interrompere la registrazione Dispatcharr. Controlla connessione e permessi DVR.</string>
+    <string name="dispatcharr_remote_unconfigured">Configura Dispatcharr nelle Impostazioni per visualizzare le registrazioni del server.</string>
+    <string name="dispatcharr_remote_failed">Impossibile caricare le registrazioni Dispatcharr.</string>
+    <string name="dispatcharr_remote_refresh">Aggiorna</string>
 </resources>

@@ -12,6 +12,7 @@ on:
 
 permissions:
   contents: write
+  statuses: write
 
 concurrency:
   group: dispatcharr-apk-${{ github.ref }}
@@ -19,7 +20,7 @@ concurrency:
 
 jobs:
   test-and-apk:
-    if: github.event_name == 'push' || github.head_ref == 'feature/dispatcharr-source-switch'
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 70
     steps:
@@ -100,7 +101,8 @@ jobs:
           echo "VERSION_CODE=$((200000 + ${GITHUB_RUN_NUMBER}))" >> "$GITHUB_ENV"
           export VERSION_CODE=$((200000 + ${GITHUB_RUN_NUMBER}))
           export VERSION_NAME="0.99.${GITHUB_RUN_NUMBER}"
-          ./gradlew :app:assembleStandardDebug "-Powntv.corePath=$CORE_DIR" --stacktrace --no-daemon
+          set -o pipefail
+          ./gradlew :app:assembleStandardDebug "-Powntv.corePath=$CORE_DIR" --stacktrace --no-daemon 2>&1 | tee tv-build.log
 
       - name: Verify TV APK signature
         if: github.event_name == 'push' && env.TV_SIGNING_READY == 'true'
@@ -153,6 +155,24 @@ jobs:
           path: OwnTV/app/build/outputs/apk/standard/debug/*.apk
           if-no-files-found: error
           retention-days: 14
+
+      - name: Publish first TV build error
+        if: ${{ failure() && github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ERROR=""
+          for file in OwnTV_Core/core-test.log OwnTV/tv-build.log; do
+            if [ -f "$file" ]; then
+              ERROR=$(grep -E -m 1 '^e: |^error: |^FAILURE:|^> Task .*FAILED|^Execution failed for task|Unresolved reference' "$file" || true)
+              if [ -n "$ERROR" ]; then break; fi
+            fi
+          done
+          ERROR="${ERROR:-TV build failed (see Actions report)}"
+          ERROR="${ERROR:0:130}"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state=failure -f context=diagnostics/owntv-tv-build -f description="$ERROR"
 
       - name: Upload error reports
         if: failure()

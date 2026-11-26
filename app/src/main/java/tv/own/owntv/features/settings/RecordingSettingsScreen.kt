@@ -29,6 +29,7 @@ private enum class RecordingDialog { NONE, PRE_ROLL, POST_ROLL }
 internal val RECORDING_SEARCH_ROWS: List<Int> = listOf(
     R.string.settings_recording_reserve, R.string.settings_record_watching,
     R.string.settings_recording_pre_roll, R.string.settings_recording_post_roll,
+    R.string.dispatcharr_rec_backend_title,
 )
 
 /**
@@ -46,6 +47,7 @@ internal fun RecordingSettingsRows(
     recordingsVm: RecordingsViewModel = koinViewModel(),
 ) {
     val reserve by vm.recordingReserveConnection.collectAsStateWithLifecycle()
+    val recorderBackend by vm.recordingBackend.collectAsStateWithLifecycle()
     val preRoll by vm.recordingPreRollMinutes.collectAsStateWithLifecycle()
     val postRoll by vm.recordingPostRollMinutes.collectAsStateWithLifecycle()
     val recordWatching by vm.recordWhatImWatching.collectAsStateWithLifecycle()
@@ -78,6 +80,21 @@ internal fun RecordingSettingsRows(
             modifier = Modifier.padding(start = 22.mpx, bottom = 6.mpx),
         )
     }
+    KeyedSettingRow(
+        icon = OwnTVIcon.REC,
+        title = stringResource(R.string.dispatcharr_rec_backend_title),
+        desc = stringResource(R.string.dispatcharr_rec_backend_description),
+        value = SettingValue.Choice(stringResource(when (recorderBackend) {
+            tv.own.owntv.core.settings.SettingsRepository.RecordingBackend.AUTO -> R.string.dispatcharr_rec_backend_auto
+            tv.own.owntv.core.settings.SettingsRepository.RecordingBackend.LOCAL -> R.string.dispatcharr_rec_backend_local
+            tv.own.owntv.core.settings.SettingsRepository.RecordingBackend.DISPATCHARR -> R.string.dispatcharr_rec_backend_server
+        })),
+        helpKey = "rec_destination",
+        onClick = {
+            val all = tv.own.owntv.core.settings.SettingsRepository.RecordingBackend.entries
+            vm.setRecordingBackend(all[(all.indexOf(recorderBackend) + 1) % all.size])
+        },
+    )
     KeyedSettingRow(
         icon = OwnTVIcon.LIVE_TV,
         title = stringResource(R.string.settings_recording_reserve),

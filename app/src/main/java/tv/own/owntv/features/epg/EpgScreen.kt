@@ -204,6 +204,25 @@ fun EpgScreen(
     onEntryHook: (((() -> Boolean)?) -> Unit)? = null,
 ) {
     val vm: EpgViewModel = koinViewModel()
+    val dispatcharrContext = androidx.compose.ui.platform.LocalContext.current
+    val dispatcharrStore = remember(dispatcharrContext) {
+        tv.own.owntv.features.settings.DispatcharrConnectionStore.get(dispatcharrContext)
+    }
+    val dispatcharrConnection by dispatcharrStore.connection.collectAsStateWithLifecycle()
+    val repository: SettingsRepository = org.koin.compose.koinInject()
+    val backend by repository.recordingBackend.collectAsStateWithLifecycle(SettingsRepository.RecordingBackend.AUTO)
+    val dvrApi = remember(dispatcharrConnection, backend) {
+        if (backend == SettingsRepository.RecordingBackend.LOCAL) null
+        else dispatcharrConnection?.let { connection ->
+            tv.own.owntv.core.dispatcharr.DispatcharrApi(
+                okhttp3.OkHttpClient.Builder().callTimeout(12, java.util.concurrent.TimeUnit.SECONDS).build(),
+                connection.origin, connection.apiKey,
+            )
+        }
+    }
+    LaunchedEffect(dvrApi, dispatcharrConnection, backend) {
+        vm.attachServerDvr(dvrApi, dispatcharrConnection?.origin)
+    }
     // Live TV's view model: its preview player (no second decoder), its category list and playlist marks.
     val liveVm: LiveViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -919,6 +938,11 @@ private fun GuideRow(
             value = vm.programmesFor(channel)
         }
     }
+    val remoteRows by vm.remoteRecordings.collectAsStateWithLifecycle()
+    val remoteStarts = remember(remoteRows, programmes, channel.id) {
+        programmes.orEmpty().filter { vm.remoteRecordingFor(channel, it) != null }
+            .mapTo(HashSet()) { it.startMs }
+    }
     var focused by remember { mutableStateOf(false) }
     var okDown by remember { mutableStateOf(false) }
     LaunchedEffect(focused, cursorTime, programmes) { if (focused) onShow(programmeAt(programmes, cursorTime)) }
@@ -973,7 +997,7 @@ private fun GuideRow(
                     now = now,
                     focusTime = if (focused && cellMode) cursorTime else null,
                     catchupIds = catchupIds,
-                    recordingStarts = recordingStarts,
+                    recordingStarts = recordingStarts + remoteStarts,
                     reminderStarts = reminderStarts,
                     scrollPx = scrollPx,
                 )
