@@ -455,10 +455,15 @@ fun EpgScreen(
             SettingsRepository.CatchupPlayer.EXTERNAL -> { vm.noteChannelTuned(ch); vm.playCatchupExternal(ch, p) }
         }
     }
-    // OK on a programme: watch — the archive for one that has been on and can be replayed, else the channel.
+    // On a future EPG slot, OK opens recording choices without tuning the channel.
+    // Only live or catch-up slots are playable from the guide.
     val onOk: (ChannelEntity, EpgProgrammeEntity?) -> Unit = { ch, p ->
         val now = System.currentTimeMillis()
-        if (p != null && p.stopMs <= now && vm.canCatchup(ch, p, now)) playFromStart(ch, p) else watch(ch)
+        when {
+            p != null && p.startMs > now -> recordMenuFor = ch to p
+            p != null && p.stopMs <= now && vm.canCatchup(ch, p, now) -> playFromStart(ch, p)
+            else -> watch(ch)
+        }
     }
 
     /** What [p] on [ch] can do right now — the programme menu, Record ▾ and the buttons on top share it. */
@@ -712,7 +717,15 @@ fun EpgScreen(
                                             else -> { stepTo(to); true }
                                         }
                                     },
-                                    onOk = { p -> if (okPreviews(channel)) liveVm.onChannelFocused(channel) else onOk(channel, p) },
+                                    onOk = { p ->
+                                        if (p != null && p.startMs > System.currentTimeMillis()) {
+                                            onOk(channel, p)
+                                        } else if (okPreviews(channel)) {
+                                            liveVm.onChannelFocused(channel)
+                                        } else {
+                                            onOk(channel, p)
+                                        }
+                                    },
                                     onMenu = { p -> returnTo = null; if (p != null) menuFor = channel to p else channelMenuFor = channel },
                                     onDetails = { p -> if (p != null) { returnTo = null; detailsFor = channel to p } },
                                 )

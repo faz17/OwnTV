@@ -26,7 +26,7 @@
     <string name="dispatcharr_test_success">API connection successful</string>
     <string name="dispatcharr_test_failed">API connection failed</string>
     <string name="dispatcharr_test_hint">Check the saved server and API key</string>
-    <string name="dispatcharr_nav_reorder_title">Navigation order · use the square arrows to reorder</string>
+    <string name="dispatcharr_nav_reorder_title">Navigation order · use Up and Down to move a card</string>
     <string name="dispatcharr_nav_move_up">Up</string>
     <string name="dispatcharr_nav_move_down">Down</string>
     <string name="dispatcharr_rec_backend_title">Destinazione registrazioni</string>
@@ -38,4 +38,8 @@
     <string name="dispatcharr_remote_unconfigured">Configura Dispatcharr nelle Impostazioni per visualizzare le registrazioni del server.</string>
     <string name="dispatcharr_remote_failed">Impossibile caricare le registrazioni Dispatcharr.</string>
     <string name="dispatcharr_remote_refresh">Aggiorna</string>
+    <string name="dispatcharr_view_list">List</string>
+    <string name="dispatcharr_view_grid">Grid</string>
+    <string name="dispatcharr_remote_empty_completed">No completed recordings</string>
+    <string name="dispatcharr_remote_empty_scheduled">No scheduled recordings</string>
 </resources>

@@ -222,6 +222,9 @@ fun OwnTVShell(
     val navWiden by settingsRepo.navWiden.collectAsStateWithLifecycle(initialValue = null)
     val navLength by settingsRepo.navLength.collectAsStateWithLifecycle(initialValue = tv.own.owntv.core.settings.SettingsRepository.NavLength.FIT)
     val navOrder by settingsRepo.navMenuOrder.collectAsStateWithLifecycle(initialValue = MainSection.browseOrder)
+    val navMenuMode by settingsRepo.navMenuMode.collectAsStateWithLifecycle(
+        initialValue = tv.own.owntv.core.settings.SettingsRepository.NavMenuMode.STATIC,
+    )
     val recorderBackend by settingsRepo.recordingBackend.collectAsStateWithLifecycle(
         initialValue = tv.own.owntv.core.settings.SettingsRepository.RecordingBackend.AUTO,
     )
@@ -1527,7 +1530,10 @@ fun OwnTVShell(
                 length = navLength,
                 selected = selectedSection,
                 visibleSections = visibleSections,
-                navOrder = navOrder,
+                // Dynamic keeps the developer's original content-based order.
+                navOrder = if (navMenuMode ==
+                    tv.own.owntv.core.settings.SettingsRepository.NavMenuMode.STATIC
+                ) navOrder else MainSection.browseOrder,
                 onSelect = selectFromNav,
                 count = { section -> railCounts[section]?.takeIf { it > 0 } },
                 detail = { section -> railDetail(section, railDetails) },

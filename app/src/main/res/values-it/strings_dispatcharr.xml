@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="dispatcharr_loading">Caricamento sorgenti…</string>
+    <string name="dispatcharr_load_error">Impossibile leggere le sorgenti Dispatcharr</string>
+    <string name="dispatcharr_sources_hint">Cambia la sorgente senza uscire dal canale</string>
+    <string name="dispatcharr_provider">Fornitore n. %1$d</string>
+    <string name="dispatcharr_switching">Cambio sorgente…</string>
+    <string name="dispatcharr_active">Attiva</string>
+    <string name="dispatcharr_switch_error">Impossibile cambiare la sorgente Dispatcharr</string>
+    <string name="dispatcharr_playlist_alternatives">Altre versioni delle playlist OwnTV</string>
+    <string name="dispatcharr_settings_description">Configura il cambio di sorgente</string>
+    <string name="dispatcharr_server_url">Indirizzo HTTPS del server</string>
+    <string name="dispatcharr_url_hint">https://your-dispatcharr-server.example</string>
+    <string name="dispatcharr_api_key">Chiave API amministratore</string>
+    <string name="dispatcharr_save">Salva connessione</string>
+    <string name="dispatcharr_remove">Rimuovi connessione</string>
+    <string name="dispatcharr_invalid_config">Inserisci un indirizzo HTTPS valido e una chiave API</string>
+    <string name="dispatcharr_config_saved">Salvato su questo dispositivo</string>
+    <string name="dispatcharr_config_hint">La chiave rimane cifrata su questo dispositivo</string>
+    <string name="dispatcharr_not_configured">Non configurato</string>
+    <string name="dispatcharr_configured">Connessione configurata</string>
+    <string name="dispatcharr_test">Verifica la connessione API salvata</string>
+    <string name="dispatcharr_testing">Verifica connessione in corso…</string>
+    <string name="dispatcharr_test_success">Connessione API riuscita</string>
+    <string name="dispatcharr_test_failed">Connessione API non riuscita</string>
+    <string name="dispatcharr_test_hint">Controlla il server e la chiave API salvati</string>
+    <string name="dispatcharr_nav_reorder_title">Ordine menu · usa le frecce su e giù per spostare la scheda</string>
+    <string name="dispatcharr_nav_move_up">Su</string>
+    <string name="dispatcharr_nav_move_down">Giù</string>
+    <string name="dispatcharr_rec_backend_title">Destinazione registrazioni</string>
+    <string name="dispatcharr_rec_backend_description">Seleziona dove salvare le nuove registrazioni. Dispatcharr registra sul server anche quando la TV è spenta.</string>
+    <string name="dispatcharr_rec_backend_auto">Automatica (comportamento attuale)</string>
+    <string name="dispatcharr_rec_backend_local">OwnTV · sul dispositivo</string>
+    <string name="dispatcharr_rec_backend_server">Dispatcharr · sul server</string>
+    <string name="dispatcharr_record_failed">Impossibile avviare o interrompere la registrazione Dispatcharr. Controlla connessione e permessi DVR.</string>
+    <string name="dispatcharr_remote_unconfigured">Configura Dispatcharr nelle Impostazioni per visualizzare le registrazioni del server.</string>
+    <string name="dispatcharr_remote_failed">Impossibile caricare le registrazioni Dispatcharr.</string>
+    <string name="dispatcharr_remote_refresh">Aggiorna</string>
+    <string name="dispatcharr_view_list">Lista</string>
+    <string name="dispatcharr_view_grid">Griglia</string>
+    <string name="dispatcharr_remote_empty_completed">Nessuna registrazione completata</string>
+    <string name="dispatcharr_remote_empty_scheduled">Nessuna registrazione programmata</string>
+</resources>

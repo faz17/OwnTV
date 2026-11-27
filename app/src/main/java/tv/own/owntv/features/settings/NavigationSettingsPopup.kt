@@ -32,6 +32,13 @@ import tv.own.owntv.ui.stage.StagePill
 import tv.own.owntv.ui.theme.StageColors
 import tv.own.owntv.ui.theme.mpx
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 
 /**
  * Settings › Layout › Navigation: Floating or Docked as radio rows, then Menu labels (see [MenuLabels]), the rail's
@@ -59,6 +66,13 @@ fun NavigationSettingsPopup(
     onDismiss: () -> Unit,
 ) {
     val first = remember { FocusRequester() }
+    var recentlyMoved by remember { mutableStateOf<MainSection?>(null) }
+    LaunchedEffect(recentlyMoved) {
+        if (recentlyMoved != null) {
+            kotlinx.coroutines.delay(850)
+            recentlyMoved = null
+        }
+    }
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
     BackHandler { onDismiss() }
     val locale = LocalConfiguration.current.locales[0]
@@ -117,40 +131,54 @@ fun NavigationSettingsPopup(
             onClick = { onMenuMode(if (static) NavMenuMode.DYNAMIC else NavMenuMode.STATIC) },
             leading = { OwnTVIcon(OwnTVIcon.GRID, StageColors.Text, Modifier.size(21.mpx)) },
         )
-        // D-pad cannot drag: the same six-square reorder control is represented by
-        // adjacent square Up/Down buttons, usable with a television remote.
-        Text(
-            stringResource(R.string.dispatcharr_nav_reorder_title),
-            modifier = Modifier.padding(start = 61.mpx, top = 8.mpx, bottom = 9.mpx),
-        )
-        Column(Modifier.padding(start = 61.mpx, end = 22.mpx, bottom = 14.mpx),
-            verticalArrangement = Arrangement.spacedBy(8.mpx)) {
-            navOrder.forEachIndexed { index, section ->
-                val visible = section !in hiddenSections
-                val toggleable = static && section != MainSection.HOME
-                val icon = MenuSections.firstOrNull { it.first == section }?.second ?: OwnTVIcon.GRID
-                Row(horizontalArrangement = Arrangement.spacedBy(9.mpx)) {
-                    StagePill(
-                        text = stringResource(section.labelRes),
-                        onClick = { if (toggleable) onSectionHidden(section, visible) },
-                        icon = icon,
-                        trailingIcon = if (static) (if (visible) OwnTVIcon.CHECK else OwnTVIcon.EYE_OFF) else null,
-                        enabled = toggleable,
-                        dimmed = static && !visible,
-                        modifier = Modifier.weight(1f),
+        // A TV remote has no touch drag. The focused item lifts via StagePill;
+        // after an arrow moves it, its card stays highlighted briefly.
+        // Dynamic retains the developer's original content-based order.
+        if (static) {
+            Text(
+                stringResource(R.string.dispatcharr_nav_reorder_title),
+                modifier = Modifier.padding(start = 61.mpx, top = 8.mpx, bottom = 9.mpx),
+            )
+            Column(Modifier.padding(start = 61.mpx, end = 22.mpx, bottom = 14.mpx),
+                verticalArrangement = Arrangement.spacedBy(8.mpx)) {
+                navOrder.forEachIndexed { index, section ->
+                    val visible = section !in hiddenSections
+                    val toggleable = section != MainSection.HOME
+                    val icon = MenuSections.firstOrNull { it.first == section }?.second ?: OwnTVIcon.GRID
+                    val active = recentlyMoved == section
+                    val tint by animateColorAsState(
+                        targetValue = if (active) Color(0x3643B5A0) else Color.Transparent,
+                        label = section.name,
                     )
-                    StagePill(
-                        text = stringResource(R.string.dispatcharr_nav_move_up),
-                        onClick = { onMoveSection(section, -1) },
-                        icon = OwnTVIcon.CHEVRON_UP,
-                        enabled = index > 0,
-                    )
-                    StagePill(
-                        text = stringResource(R.string.dispatcharr_nav_move_down),
-                        onClick = { onMoveSection(section, 1) },
-                        icon = OwnTVIcon.CHEVRON_DOWN,
-                        enabled = index < navOrder.lastIndex,
-                    )
+                    Row(
+                        modifier = Modifier
+                            .background(tint, RoundedCornerShape(15.mpx))
+                            .padding(4.mpx),
+                        horizontalArrangement = Arrangement.spacedBy(9.mpx),
+                    ) {
+                        StagePill(
+                            text = stringResource(section.labelRes),
+                            onClick = { if (toggleable) onSectionHidden(section, visible) },
+                            icon = icon,
+                            trailingIcon = if (visible) OwnTVIcon.CHECK else OwnTVIcon.EYE_OFF,
+                            enabled = toggleable,
+                            dimmed = !visible,
+                            highlighted = active,
+                            modifier = Modifier.weight(1f),
+                        )
+                        StagePill(
+                            text = stringResource(R.string.dispatcharr_nav_move_up),
+                            onClick = { recentlyMoved = section; onMoveSection(section, -1) },
+                            icon = OwnTVIcon.CHEVRON_UP,
+                            enabled = index > 0,
+                        )
+                        StagePill(
+                            text = stringResource(R.string.dispatcharr_nav_move_down),
+                            onClick = { recentlyMoved = section; onMoveSection(section, 1) },
+                            icon = OwnTVIcon.CHEVRON_DOWN,
+                            enabled = index < navOrder.lastIndex,
+                        )
+                    }
                 }
             }
         }
