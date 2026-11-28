@@ -1271,6 +1271,9 @@ class LiveViewModel(
 
     /** In-pane preview playback (no history) — triggered by the UI after the focus settles. */
     fun playPreview(channel: ChannelEntity) {
+        // A docked live player owns the audio and stream. Never start a muted preview
+        // behind it when browsing returns to the Live TV list.
+        if (miniOpen) return
         // Recorded even when it cannot play (a hidden folder, a one-stream panel): a second OK on it
         // must still open full screen.
         _paneChannel.value = channel

@@ -471,8 +471,18 @@ fun OwnTVShell(
     // Shares the Live list's resolved titles, so opening the overlay over a list already on screen
     // asks for nothing, and only genuinely new channels cost a query.
     val overlayNowPlaying by liveVm.nowPlaying.collectAsStateWithLifecycle()
-    LaunchedEffect(showChannelList, zapChannels) {
-        if (showChannelList && zapChannels.size > 1) liveVm.ensureNowPlaying(zapChannels)
+    // Refresh EPG for visible Favorites when the left player sheet opens; cached
+    // "no programme" rows may be stale after the source guide finishes syncing.
+    LaunchedEffect(showChannelList, zapListKey, zapChannels) {
+        if (!showChannelList || zapChannels.isEmpty()) return@LaunchedEffect
+        if (zapListKey == LiveKey.Favorites) {
+            val current = zapChannels.indexOfFirst { it.id == liveVm.playingChannel?.id }.coerceAtLeast(0)
+            val start = (current - 12).coerceAtLeast(0)
+            val end = (current + 18).coerceAtMost(zapChannels.size)
+            liveVm.refreshNowPlaying(zapChannels.subList(start, end))
+        } else {
+            liveVm.ensureNowPlaying(zapChannels)
+        }
     }
     LaunchedEffect(showChannelList, showCategoryBrowser, peekChannels) {
         if (showChannelList && showCategoryBrowser && peekChannels.isNotEmpty()) liveVm.ensureNowPlaying(peekChannels)
@@ -976,6 +986,8 @@ fun OwnTVShell(
 
     BackHandler {
         when {
+            // Back from live TV docks the same engine and keeps sound playing.
+            playerMode == PlayerMode.FULLSCREEN && zapSource == MainSection.LIVE_TV && !catchupActive -> dockPlayer()
             playerMode == PlayerMode.FULLSCREEN -> exitPlayer()
             showAvatarPicker -> showAvatarPicker = false
             showPlaylistPicker -> showPlaylistPicker = false
@@ -1784,7 +1796,7 @@ fun OwnTVShell(
                 }
                 PlayerHud(
                     player = if (liveOnExo) liveVm.previewEngine else mpvEngine, // HUD drives the active engine
-                    onBack = exitPlayer,
+                    onBack = if (isTunedLive) dockPlayer else exitPlayer,
                     onPip = dockPlayer, // PiP/dock works for live on either engine now
                     onAudioMode = toAudioMode,
                     // The channel-list overlay draws ABOVE the HUD; while it's open the HUD goes inert so
@@ -2098,6 +2110,7 @@ fun OwnTVShell(
                             currentId = previewChannel?.id,
                             nowPlaying = overlayNowPlaying,
                             nowProgrammes = overlayProgrammes,
+                            onVisibleChannels = { visible -> liveVm.ensureNowPlaying(visible) },
                             favoriteIds = overlayFavoriteIds,
                             playlistMarks = overlayPlaylistMarks,
                             title = zapOverlayTitle,

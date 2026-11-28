@@ -596,11 +596,8 @@ fun PlayerHud(
                 // Up/Down navigate the controls) —
                 // this is the only way to change channels on remotes without CH keys (e.g. Fire TV).
                 //
-                // Direction is channel-number order, not list-position order: "up" (CH+, D-pad Up) is
-                // the NEXT channel — further down an ascending list, delta +1 — matching the
-                // de facto TV convention (Live Channels, YouTube TV, Pluto TV). CH and D-pad keys move together:
-                // Swap channel up/down flips both (see zapDirection), never the media keys. Wrapping is
-                // intended: CH-/Down from the first channel lands on the last, and vice versa.
+                // D-pad follows the visible list: Down selects the NEXT channel (+1), Up the
+                // PREVIOUS (-1). Physical CH+/CH- keep their separate, configurable convention.
                 canZap && e.key == Key.MediaNext -> { zap(1); true }
                 canZap && e.key == Key.MediaPrevious -> { zap(-1); true }
                 //
@@ -610,7 +607,7 @@ fun PlayerHud(
                 !controlsVisible && isLive && (e.key == Key.DirectionUp || e.key == Key.DirectionDown) -> {
                     val up = e.key == Key.DirectionUp
                     when (remoteOptions.dpadUpDown) {
-                        PlayerDpadUpDownAction.ZAP -> { if (canZap) zap(zapDirection(up, remoteOptions)); canZap }
+                        PlayerDpadUpDownAction.ZAP -> { if (canZap) zap(if (up) -1 else 1); canZap }
                         PlayerDpadUpDownAction.CONTROLS_AND_HISTORY -> {
                             if (up && onOpenHistoryList != null) onOpenHistoryList() else controlsVisible = true
                             true
