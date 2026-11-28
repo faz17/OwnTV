@@ -3,6 +3,8 @@
     <string name="dispatcharr_title" translatable="false">Dispatcharr</string>
     <string name="dispatcharr_loading">Loading sources…</string>
     <string name="dispatcharr_load_error">Could not read Dispatcharr sources</string>
+    <string name="dispatcharr_unsupported_channel">This channel's playback URL does not match the Dispatcharr server configured on this TV. Check the server address in Settings.</string>
+    <string name="dispatcharr_no_streams">No upstream streams are assigned to this channel in Dispatcharr.</string>
     <string name="dispatcharr_sources_hint">Switch the upstream without leaving the channel</string>
     <string name="dispatcharr_provider">Provider #%1$d</string>
     <string name="dispatcharr_switching">Switching…</string>

@@ -106,8 +106,11 @@ internal enum class HudDialog { NONE, AUDIO, SUBS, SPEED, ZOOM, QUALITY, VOLUME,
  * trusted Dispatcharr connection; otherwise the normal Sources menu is unchanged.
  */
 class HudDispatcharrSources(
-    val load: suspend () -> tv.own.owntv.core.dispatcharr.DispatcharrApi.ChannelSources,
-    val onPick: suspend (Int) -> Unit,
+    // Null for a channel whose playback URL does not belong to the configured server.
+    // Keep this state visible, rather than silently showing unrelated playlist versions.
+    val load: (suspend () -> tv.own.owntv.core.dispatcharr.DispatcharrApi.ChannelSources)? = null,
+    val onPick: (suspend (Int) -> Unit)? = null,
+    val unavailable: Boolean = false,
 )
 
 class HudSources(

@@ -99,9 +99,11 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           chmod +x ./gradlew
-          echo "VERSION_CODE=$((200000 + ${GITHUB_RUN_NUMBER}))" >> "$GITHUB_ENV"
-          export VERSION_CODE=$((200000 + ${GITHUB_RUN_NUMBER}))
-          export VERSION_NAME="0.99.${GITHUB_RUN_NUMBER}"
+          # Above the first stable v6.0.0 code (300000 + run number).
+          # Otherwise Android refuses to install this preview over the existing Fire TV APK.
+          echo "VERSION_CODE=$((400000 + ${GITHUB_RUN_NUMBER}))" >> "$GITHUB_ENV"
+          export VERSION_CODE=$((400000 + ${GITHUB_RUN_NUMBER}))
+          export VERSION_NAME="6.0.1-preview.${GITHUB_RUN_NUMBER}"
           set -o pipefail
           ./gradlew :app:assembleStandardDebug "-Powntv.corePath=$CORE_DIR" --stacktrace --no-daemon 2>&1 | tee tv-build.log
 

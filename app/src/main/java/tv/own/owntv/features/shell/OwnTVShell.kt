@@ -1917,26 +1917,33 @@ fun OwnTVShell(
                     onOtherChannels = matchSession?.takeIf { it.options.size > 1 }?.let { { showOtherChannels = true } },
                     otherChannelsCount = (matchSession?.options?.size ?: 1) - 1,
                     onToastOk = goalToast?.let { a -> { switchToMatch(a.match) } },
-                    // The channel's other versions, read when the button is pressed; a pick is an
-                    // ordinary tune, the same as picking it in the channel list.
+                    // Use the same stable Dispatcharr selector identity as Mobile. Player
+                    // recompositions must not restart its API load or scroll the Sources menu
+                    // back to OwnTV's alternate channels. A configured but mismatched URL gets
+                    // a visible diagnostic, never a silent playlist fallback.
                     sources = previewChannel?.takeIf { isTunedLive }?.let { ch ->
                         val api = dispatcharrApi
                         val server = dispatcharrConnection?.origin
-                        val remote = if (api != null && server != null &&
-                            (tv.own.owntv.core.dispatcharr.DispatcharrChannelUrls.parseForServer(ch.streamUrl, server) != null ||
-                                tv.own.owntv.core.dispatcharr.DispatcharrXtreamChannelUrls.parseForServer(ch.streamUrl, server) != null)
-                        ) {
-                            tv.own.owntv.player.HudDispatcharrSources(
-                                load = { api.sourcesFor(ch.streamUrl) },
-                                onPick = { streamId -> api.switch(ch.streamUrl, streamId) },
+                        val remote = remember(api, server, ch.id, ch.streamUrl) {
+                            if (api == null || server == null) null
+                            else {
+                                val supported =
+                                    tv.own.owntv.core.dispatcharr.DispatcharrChannelUrls.parseForServer(ch.streamUrl, server) != null ||
+                                        tv.own.owntv.core.dispatcharr.DispatcharrXtreamChannelUrls.parseForServer(ch.streamUrl, server) != null
+                                if (supported) tv.own.owntv.player.HudDispatcharrSources(
+                                    load = { api.sourcesFor(ch.streamUrl) },
+                                    onPick = { streamId -> api.switch(ch.streamUrl, streamId) },
+                                ) else tv.own.owntv.player.HudDispatcharrSources(unavailable = true)
+                            }
+                        }
+                        remember(ch, channelVersions, liveVm, remote) {
+                            tv.own.owntv.player.HudSources(
+                                load = { channelVersions.of(ch) },
+                                playingId = ch.id,
+                                onPick = liveVm::ensurePlaying,
+                                dispatcharr = remote,
                             )
-                        } else null
-                        tv.own.owntv.player.HudSources(
-                            load = { channelVersions.of(ch) },
-                            playingId = ch.id,
-                            onPick = liveVm::ensurePlaying,
-                            dispatcharr = remote,
-                        )
+                        }
                     },
                     modifier = Modifier.fillMaxSize(),
                 )

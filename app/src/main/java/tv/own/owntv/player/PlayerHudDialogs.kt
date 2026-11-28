@@ -338,56 +338,108 @@ internal fun ZoomDialog(current: ZoomMode, onSelect: (ZoomMode) -> Unit, onDismi
     }
 }
 
-/** Auto (Settings → Maximum video quality), then every height this stream offers, highest first. */
 /**
- * "Sources": the playing channel and its other versions, best picture first, the one on screen ringed.
- * Each row names the version, then its category and playlist, with the provider's quality marks at the
- * end. Opens once the list is read (a quick indexed lookup, then cached for the channel).
+ * The TV's Sources menu presents *upstream streams* when Dispatcharr is configured.
+ * OwnTV channel versions are a separate fallback only when Dispatcharr is not configured.
+ * Never focus a playlist-version row under a Dispatcharr section: LazyColumn used to scroll
+ * there automatically and hide the real streams above it.
  */
 @Composable
 internal fun SourcesDialog(sources: HudSources, onDismiss: () -> Unit) {
-    val versions by produceState<List<tv.own.owntv.core.live.ChannelVersion>?>(null, sources) {
-        value = runCatching { sources.load() }.getOrDefault(emptyList())
-    }
     val dispatcharr = sources.dispatcharr
+    val versions by produceState<List<tv.own.owntv.core.live.ChannelVersion>?>(null, sources) {
+        // Remote switching doesn't require a potentially expensive playlist-version lookup.
+        value = if (dispatcharr == null) runCatching { sources.load() }.getOrDefault(emptyList())
+        else emptyList()
+    }
     val remote by produceState<Result<tv.own.owntv.core.dispatcharr.DispatcharrApi.ChannelSources>?>(
         null, dispatcharr,
     ) {
-        value = dispatcharr?.let { selector -> runCatching { selector.load() } }
+        value = dispatcharr?.load?.let { load -> runCatching { load() } }
     }
-    val list = versions ?: return
+    if (dispatcharr == null && versions == null) return
+    val list = versions.orEmpty()
+    val remoteStreams = remote?.getOrNull()
     val focus = remember { FocusRequester() }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
     val scope = androidx.compose.runtime.rememberCoroutineScope()
-    var switchingStreamId by remember { mutableStateOf<Int?>(null) }
-    var switchError by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { requestFocusRetrying(focus) }
+    var switchingStreamId by remember(dispatcharr) { mutableStateOf<Int?>(null) }
+    var switchError by remember(dispatcharr) { mutableStateOf(false) }
+    val playingIndex = list.indexOfFirst { it.channel.id == sources.playingId }.coerceAtLeast(0)
+    val activeStreamIndex = remoteStreams?.streams
+        ?.indexOfFirst { it.id == remoteStreams.activeStreamId }
+        ?.coerceAtLeast(0) ?: 0
+
+    LaunchedEffect(sources, remoteStreams, remote?.isFailure, dispatcharr?.unavailable) {
+        if (dispatcharr != null) {
+            when {
+                remoteStreams != null -> {
+                    // Header is row 0, the selected server stream follows it.
+                    listState.scrollToItem(if (remoteStreams.streams.isEmpty()) 1 else 1 + activeStreamIndex)
+                    requestFocusRetrying(focus)
+                }
+                dispatcharr.unavailable || remote?.isFailure == true -> {
+                    listState.scrollToItem(1)
+                    requestFocusRetrying(focus)
+                }
+            }
+        } else if (list.isNotEmpty()) {
+            listState.scrollToItem(playingIndex)
+            requestFocusRetrying(focus)
+        }
+    }
     BackHandler { if (switchingStreamId == null) onDismiss() }
     val separator = stringResource(R.string.content_epg_bits_separator)
-    val focusIndex = list.indexOfFirst { it.channel.id == sources.playingId }.coerceAtLeast(0)
-    DialogScaffold(title = stringResource(R.string.player_tool_sources), onDismiss = onDismiss) {
-        // Upstream streams are not different OwnTV channels: selecting one must
-        // call Dispatcharr instead of retuning the playback engine.
+    DialogScaffold(
+        title = stringResource(R.string.player_tool_sources),
+        onDismiss = onDismiss,
+        state = listState,
+    ) {
         if (dispatcharr != null) {
             item {
                 tv.own.owntv.ui.stage.StagePopupOption(
                     title = stringResource(R.string.dispatcharr_title),
                     subtitle = when {
+                        dispatcharr.unavailable -> stringResource(R.string.dispatcharr_unsupported_channel)
                         remote == null -> stringResource(R.string.dispatcharr_loading)
-                        remote?.isFailure == true -> stringResource(R.string.dispatcharr_load_error)
+                        remote.isFailure -> stringResource(R.string.dispatcharr_load_error)
                         else -> stringResource(R.string.dispatcharr_sources_hint)
                     },
                     enabled = false,
                     onClick = {},
                 )
             }
-            val remoteStreams = remote?.getOrNull()
-            if (remoteStreams != null) {
-                items(remoteStreams.streams.size) { index ->
+            when {
+                dispatcharr.unavailable -> item {
+                    tv.own.owntv.ui.stage.StagePopupOption(
+                        title = stringResource(R.string.dispatcharr_unsupported_channel),
+                        subtitle = stringResource(R.string.dispatcharr_test_hint),
+                        modifier = Modifier.focusRequester(focus),
+                        onClick = onDismiss,
+                    )
+                }
+                remote?.isFailure == true -> item {
+                    tv.own.owntv.ui.stage.StagePopupOption(
+                        title = stringResource(R.string.dispatcharr_load_error),
+                        subtitle = stringResource(R.string.dispatcharr_test_hint),
+                        modifier = Modifier.focusRequester(focus),
+                        onClick = onDismiss,
+                    )
+                }
+                remoteStreams != null && remoteStreams.streams.isEmpty() -> item {
+                    tv.own.owntv.ui.stage.StagePopupOption(
+                        title = stringResource(R.string.dispatcharr_no_streams),
+                        modifier = Modifier.focusRequester(focus),
+                        onClick = onDismiss,
+                    )
+                }
+                remoteStreams != null -> items(remoteStreams.streams.size) { index ->
                     val source = remoteStreams.streams[index]
                     val active = source.id == remoteStreams.activeStreamId
                     tv.own.owntv.ui.stage.StagePopupOption(
                         title = source.name,
-                        subtitle = source.providerAccountName ?: source.providerAccountId?.let { stringResource(R.string.dispatcharr_provider, it) },
+                        subtitle = source.providerAccountName
+                            ?: source.providerAccountId?.let { stringResource(R.string.dispatcharr_provider, it) },
                         value = when {
                             switchingStreamId == source.id -> stringResource(R.string.dispatcharr_switching)
                             active -> stringResource(R.string.dispatcharr_active)
@@ -395,16 +447,18 @@ internal fun SourcesDialog(sources: HudSources, onDismiss: () -> Unit) {
                         },
                         chosen = active,
                         enabled = switchingStreamId == null,
-                        leading = { f -> tv.own.owntv.ui.stage.StagePopupRadio(active, f) },
+                        modifier = if (index == activeStreamIndex) Modifier.focusRequester(focus) else Modifier,
+                        leading = { focused -> tv.own.owntv.ui.stage.StagePopupRadio(active, focused) },
                         onClick = {
                             if (!active && switchingStreamId == null) {
                                 switchingStreamId = source.id
                                 switchError = false
                                 scope.launch {
-                                    val result = runCatching { dispatcharr.onPick(source.id) }
+                                    val result = runCatching {
+                                        requireNotNull(dispatcharr.onPick).invoke(source.id)
+                                    }
                                     switchingStreamId = null
-                                    if (result.isSuccess) onDismiss()
-                                    else switchError = true
+                                    if (result.isSuccess) onDismiss() else switchError = true
                                 }
                             }
                         },
@@ -418,30 +472,30 @@ internal fun SourcesDialog(sources: HudSources, onDismiss: () -> Unit) {
                     onClick = {},
                 )
             }
-            if (remote != null) item {
+        } else {
+            // Without a configured Dispatcharr API the legacy source selector is still useful
+            // for ordinary IPTV playlists; it must not be confused with upstream streams.
+            items(list.size) { index ->
+                val version = list[index]
+                val playing = version.channel.id == sources.playingId
                 tv.own.owntv.ui.stage.StagePopupOption(
-                    title = stringResource(R.string.dispatcharr_playlist_alternatives),
-                    enabled = false,
-                    onClick = {},
+                    title = version.name,
+                    subtitle = listOfNotNull(version.categoryName, version.playlistName)
+                        .filter { it.isNotBlank() }.distinct().joinToString(separator).ifEmpty { null },
+                    value = version.tags.joinToString(" ").ifEmpty { null },
+                    chosen = playing,
+                    modifier = if (index == playingIndex) Modifier.focusRequester(focus) else Modifier,
+                    leading = { focused -> tv.own.owntv.ui.stage.StagePopupRadio(playing, focused) },
+                    onClick = { onDismiss(); if (!playing) sources.onPick(version.channel) },
                 )
             }
-        }
-        if (dispatcharr == null || remote != null) items(list.size) { index ->
-            val v = list[index]
-            val playing = v.channel.id == sources.playingId
-            tv.own.owntv.ui.stage.StagePopupOption(
-                title = v.name,
-                subtitle = listOfNotNull(v.categoryName, v.playlistName).filter { it.isNotBlank() }.distinct().joinToString(separator).ifEmpty { null },
-                value = v.tags.joinToString(" ").ifEmpty { null },
-                chosen = playing,
-                modifier = if (index == focusIndex) Modifier.focusRequester(focus) else Modifier,
-                leading = { f -> tv.own.owntv.ui.stage.StagePopupRadio(playing, f) },
-                onClick = { onDismiss(); if (!playing) sources.onPick(v.channel) },
-            )
-        }
-        // Only the channel itself: say so, rather than leave a list of one that looks like a fault.
-        if (list.size <= 1) item {
-            tv.own.owntv.ui.stage.StagePopupOption(title = stringResource(R.string.player_sources_none), onClick = onDismiss, enabled = false)
+            if (list.size <= 1) item {
+                tv.own.owntv.ui.stage.StagePopupOption(
+                    title = stringResource(R.string.player_sources_none),
+                    onClick = onDismiss,
+                    enabled = false,
+                )
+            }
         }
     }
 }
