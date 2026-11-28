@@ -66,16 +66,19 @@ fun LiveEpgCard(
     val nowMs = if (archive) (atMs ?: wallNow) else wallNow
 
     Row(
-        modifier = if (!archive) modifier else modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(tv.own.owntv.ui.theme.stageAccent.accent.copy(alpha = 0.09f))
-            .border(1.dp, tv.own.owntv.ui.theme.stageAccent.accent.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+        modifier = modifier.fillMaxWidth().then(
+            if (archive) Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .background(tv.own.owntv.ui.theme.stageAccent.accent.copy(alpha = 0.09f))
+                .border(1.dp, tv.own.owntv.ui.theme.stageAccent.accent.copy(alpha = 0.45f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+            else Modifier
+        ),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         epg.now?.let { entry ->
-            Column(Modifier.widthIn(max = 300.dp)) {
+            Column(Modifier.weight(if (epg.next == null) 1f else 0.64f)) {
                 SlotLabel(stringResource(if (archive) R.string.content_archive_playing else R.string.content_live_now), tv.own.owntv.ui.theme.stageAccent.accent)
                 Text(
                     entry.title,
@@ -143,7 +146,7 @@ fun LiveEpgCard(
             Box(Modifier.height(34.dp).widthIn(min = 1.dp, max = 1.dp).background(hudInk.copy(alpha = 0.18f)))
         }
         epg.next?.let { entry ->
-            Column(Modifier.widthIn(max = 240.dp)) {
+            Column(Modifier.weight(if (epg.now == null) 1f else 0.36f)) {
                 SlotLabel(stringResource(if (archive) R.string.content_archive_then else R.string.content_live_next), hudInk.copy(alpha = 0.45f))
                 Text(
                     entry.title,

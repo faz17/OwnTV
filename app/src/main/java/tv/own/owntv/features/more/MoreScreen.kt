@@ -15,6 +15,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -173,6 +175,11 @@ fun MoreScreen(
                 .focusGroup(),
         ) {
             ProfileRow(profileName, playlistLabel, playlists, avatarId, avatarPath, onSwitchProfile, onPickAvatar)
+            // The vertical menu grows beyond the viewport at 120% zoom. Scroll only
+            // its entries, leaving the profile header and remote-control hints visible.
+            Column(
+                Modifier.weight(1f).verticalScroll(rememberScrollState()).focusGroup(),
+            ) {
             val item = @Composable { it: MoreItem, icon: OwnTVIcon, label: String, value: String?, warn: Boolean ->
                 StageGroupItem(
                     text = label, icon = icon, value = value, warn = warn,
@@ -196,7 +203,7 @@ fun MoreScreen(
             item(MoreItem.ABOUT, OwnTVIcon.INFO, stringResource(R.string.settings_about), BuildConfig.VERSION_NAME, false)
             // Maintainer-only; DEV_TOOLS is a compile-time constant, so R8 removes it from published APKs.
             if (BuildConfig.DEV_TOOLS) item(MoreItem.DEVELOPER, OwnTVIcon.GEAR, "Developer", "DEV", false)
-            Spacer(Modifier.weight(1f))
+            }
             StageKeyHints(
                 listOf(
                     stringResource(R.string.common_ok) to stringResource(R.string.content_key_select),

@@ -725,6 +725,13 @@ class SettingsViewModel(
 
     // --- CH+- key paging (browse panels): master toggle + per-direction skip counts ---
     // --- Recording ---
+    val recordingBackend: StateFlow<SettingsRepository.RecordingBackend> =
+        settings.recordingBackend.stateIn(
+            viewModelScope, SharingStarted.WhileSubscribed(5_000), SettingsRepository.RecordingBackend.AUTO,
+        )
+    fun setRecordingBackend(value: SettingsRepository.RecordingBackend) {
+        viewModelScope.launch { settings.setRecordingBackend(value) }
+    }
     val recordWhatImWatching: StateFlow<Boolean> =
         settings.recordWhatImWatching.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
     fun setRecordWhatImWatching(enabled: Boolean) { viewModelScope.launch { settings.setRecordWhatImWatching(enabled) } }
@@ -882,6 +889,26 @@ class SettingsViewModel(
         settings.navHideAfterMs.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), tv.own.owntv.core.settings.SettingsRepository.NavHideAfter.DEFAULT_MS)
     fun setNavHideAfterMs(ms: Int) {
         viewModelScope.launch { settings.setNavHideAfterMs(ms) }
+    }
+
+    /** Saved order is shared with Mobile. */
+    val navMenuOrder: StateFlow<List<tv.own.owntv.core.nav.MainSection>> =
+        settings.navMenuOrder.stateIn(
+            viewModelScope, SharingStarted.WhileSubscribed(5_000),
+            tv.own.owntv.core.nav.MainSection.browseOrder,
+        )
+
+    fun moveNavSection(section: tv.own.owntv.core.nav.MainSection, shift: Int) {
+        viewModelScope.launch {
+            val entries = settings.navMenuOrder.first().toMutableList()
+            val from = entries.indexOf(section)
+            if (from < 0) return@launch
+            val to = (from + shift).coerceIn(0, entries.lastIndex)
+            if (from != to) {
+                entries.add(to, entries.removeAt(from))
+                settings.setNavMenuOrder(entries)
+            }
+        }
     }
 
     /** Browse sections the user has hidden (STATIC mode only). */

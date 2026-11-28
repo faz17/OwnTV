@@ -96,12 +96,6 @@ enum class RailState {
  */
 data class NowPlayingRail(val logoUrl: String?, val audioMode: Boolean, val playing: Boolean)
 
-/** The rail order: Search first, Sports then the Guide right after Live TV, More last. */
-private val StageRailOrder = listOf(
-    MainSection.SEARCH, MainSection.HOME, MainSection.LIVE_TV, MainSection.SPORTS, MainSection.EPG,
-    MainSection.MOVIES, MainSection.SERIES, MainSection.DOWNLOADS,
-)
-
 /** The rail's width with names: Normal 280 · Wide 340 · Extra wide 400; Compact is the 84 capsule. */
 private val NavSize.openWidth get() = when (this) {
     NavSize.COMPACT -> 84
@@ -134,6 +128,7 @@ fun StageRail(
     length: NavLength,
     selected: MainSection,
     visibleSections: Set<MainSection>,
+    navOrder: List<MainSection>,
     onSelect: (MainSection) -> Unit,
     count: (MainSection) -> Int?,
     detail: @Composable (MainSection) -> String?,
@@ -161,12 +156,14 @@ fun StageRail(
     val scope = rememberCoroutineScope()
     var hasFocus by remember { mutableStateOf(false) }
     // Search, Settings and More all land on a rail item: Search has its own, Settings lives behind More.
+    val sortedRail = listOf(MainSection.SEARCH) +
+        navOrder.filter { it in visibleSections } + MainSection.MORE
     val focusSection = when {
         selected == MainSection.SETTINGS || selected == MainSection.MORE -> MainSection.MORE
         selected == MainSection.SEARCH || selected in visibleSections -> selected
-        else -> StageRailOrder.firstOrNull { it in visibleSections } ?: MainSection.MORE
+        else -> sortedRail.firstOrNull { it in visibleSections } ?: MainSection.MORE
     }
-    val items = StageRailOrder.filter { it == MainSection.SEARCH || it in visibleSections } + MainSection.MORE
+    val items = sortedRail
 
     // Slide in from the edge (320 ms, or a snap with animations off) when the rail leaves HIDDEN. A rail
     // that opens from the capsule already on screen widens in place instead: sliding it in from off-screen
@@ -328,6 +325,7 @@ private val MainSection.stageIcon: OwnTVIcon
         MainSection.MOVIES -> OwnTVIcon.MOVIES
         MainSection.SERIES -> OwnTVIcon.SERIES
         MainSection.DOWNLOADS -> OwnTVIcon.DOWNLOADS
+        MainSection.RECORDINGS -> OwnTVIcon.REC
         MainSection.MORE, MainSection.SETTINGS -> OwnTVIcon.TILES
     }
 

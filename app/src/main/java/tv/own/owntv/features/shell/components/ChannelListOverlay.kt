@@ -21,6 +21,10 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,6 +84,7 @@ fun ChannelListOverlay(
     modifier: Modifier = Modifier,
     nowProgrammes: Map<Long, XtEpgEntry> = emptyMap(),
     nowPlaying: Map<Long, String> = emptyMap(),
+    onVisibleChannels: (List<ChannelEntity>) -> Unit = {},
     favoriteIds: Set<Long> = emptySet(),
     playlistMarks: Map<Long, PlaylistMark> = emptyMap(),
     title: String? = null,
@@ -117,6 +122,7 @@ fun ChannelListOverlay(
             onSelect = onSelect,
             nowProgrammes = nowProgrammes,
             nowPlaying = nowPlaying,
+            onVisibleChannels = onVisibleChannels,
             favoriteIds = favoriteIds,
             playlistMarks = playlistMarks,
             title = title,
@@ -160,6 +166,7 @@ internal fun ChannelListPanel(
     modifier: Modifier = Modifier,
     nowProgrammes: Map<Long, XtEpgEntry> = emptyMap(),
     nowPlaying: Map<Long, String> = emptyMap(),
+    onVisibleChannels: (List<ChannelEntity>) -> Unit = {},
     favoriteIds: Set<Long> = emptySet(),
     playlistMarks: Map<Long, PlaylistMark> = emptyMap(),
     title: String? = null,
@@ -170,6 +177,7 @@ internal fun ChannelListPanel(
     onFocusChannel: (ChannelEntity) -> Unit = {},
 ) {
     val layoutDirection = LocalLayoutDirection.current
+    val onVisible by rememberUpdatedState(onVisibleChannels)
     val history = watchedAt != null
     val playingIndex = remember(channels, currentId) { channels.indexOfFirst { it.id == currentId } }
     val listState = rememberLazyListState()
@@ -178,6 +186,15 @@ internal fun ChannelListPanel(
     var focusedIndex by remember(channels, entryIndex) { mutableIntStateOf(entryIndex) }
     var listFocused by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    // Only request guide programmes for the LazyColumn rows on screen, including
+    // additional Favorites that become visible as the user scrolls.
+    LaunchedEffect(listState, channels) {
+        snapshotFlow {
+            listState.layoutInfo.visibleItemsInfo.mapNotNull { item -> channels.getOrNull(item.index) }
+        }.distinctUntilChanged().collect { visible ->
+            if (visible.isNotEmpty()) onVisible(visible)
+        }
+    }
     val settingsVm: SettingsViewModel = koinViewModel()
     val chNavEnabled by settingsVm.chNavEnabled.collectAsStateWithLifecycle()
     val chNavUpSkip by settingsVm.chNavUpSkip.collectAsStateWithLifecycle()

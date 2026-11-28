@@ -180,6 +180,20 @@ fun OwnTVShell(
     var trendingSearchActive by remember { mutableStateOf(false) }
     val player = koinInject<OwnTVPlayer>()
     val channelVersions = koinInject<tv.own.owntv.core.live.ChannelVersions>()
+    // Optional Dispatcharr integration. Admin credentials remain in Android Keystore,
+    // not in playlist sources, the APK or the Git repository.
+    val dispatcharrContext = androidx.compose.ui.platform.LocalContext.current
+    val dispatcharrStore = remember(dispatcharrContext) {
+        tv.own.owntv.features.settings.DispatcharrConnectionStore.get(dispatcharrContext)
+    }
+    val dispatcharrConnection by dispatcharrStore.connection.collectAsStateWithLifecycle()
+    val dispatcharrHttp = remember { okhttp3.OkHttpClient.Builder()
+        .callTimeout(12, java.util.concurrent.TimeUnit.SECONDS).build() }
+    val dispatcharrApi = remember(dispatcharrConnection, dispatcharrHttp) {
+        dispatcharrConnection?.let {
+            tv.own.owntv.core.dispatcharr.DispatcharrApi(dispatcharrHttp, it.origin, it.apiKey)
+        }
+    }
     // Docked mini-player size (% of screen width) + position, configurable in Settings and from the
     // mini-player's own controls. Read straight from settings so both entry points stay in sync.
     val settingsRepo = koinInject<tv.own.owntv.core.settings.SettingsRepository>()
@@ -207,6 +221,18 @@ fun OwnTVShell(
     val navSize by settingsRepo.navSize.collectAsStateWithLifecycle(initialValue = tv.own.owntv.core.settings.SettingsRepository.NavSize.COMPACT)
     val navWiden by settingsRepo.navWiden.collectAsStateWithLifecycle(initialValue = null)
     val navLength by settingsRepo.navLength.collectAsStateWithLifecycle(initialValue = tv.own.owntv.core.settings.SettingsRepository.NavLength.FIT)
+    val navOrder by settingsRepo.navMenuOrder.collectAsStateWithLifecycle(initialValue = MainSection.browseOrder)
+    val navMenuMode by settingsRepo.navMenuMode.collectAsStateWithLifecycle(
+        initialValue = tv.own.owntv.core.settings.SettingsRepository.NavMenuMode.STATIC,
+    )
+    val recorderBackend by settingsRepo.recordingBackend.collectAsStateWithLifecycle(
+        initialValue = tv.own.owntv.core.settings.SettingsRepository.RecordingBackend.AUTO,
+    )
+    val remoteDvrSelected = when (recorderBackend) {
+        tv.own.owntv.core.settings.SettingsRepository.RecordingBackend.LOCAL -> false
+        tv.own.owntv.core.settings.SettingsRepository.RecordingBackend.DISPATCHARR -> true
+        tv.own.owntv.core.settings.SettingsRepository.RecordingBackend.AUTO -> dispatcharrConnection != null
+    }
     val navHideAfterMs by settingsRepo.navHideAfterMs.collectAsStateWithLifecycle(
         initialValue = tv.own.owntv.core.settings.SettingsRepository.NavHideAfter.DEFAULT_MS,
     )
@@ -445,8 +471,18 @@ fun OwnTVShell(
     // Shares the Live list's resolved titles, so opening the overlay over a list already on screen
     // asks for nothing, and only genuinely new channels cost a query.
     val overlayNowPlaying by liveVm.nowPlaying.collectAsStateWithLifecycle()
-    LaunchedEffect(showChannelList, zapChannels) {
-        if (showChannelList && zapChannels.size > 1) liveVm.ensureNowPlaying(zapChannels)
+    // Refresh EPG for visible Favorites when the left player sheet opens; cached
+    // "no programme" rows may be stale after the source guide finishes syncing.
+    LaunchedEffect(showChannelList, zapListKey, zapChannels) {
+        if (!showChannelList || zapChannels.isEmpty()) return@LaunchedEffect
+        if (zapListKey == LiveKey.Favorites) {
+            val current = zapChannels.indexOfFirst { it.id == liveVm.playingChannel?.id }.coerceAtLeast(0)
+            val start = (current - 12).coerceAtLeast(0)
+            val end = (current + 18).coerceAtMost(zapChannels.size)
+            liveVm.refreshNowPlaying(zapChannels.subList(start, end))
+        } else {
+            liveVm.ensureNowPlaying(zapChannels)
+        }
     }
     LaunchedEffect(showChannelList, showCategoryBrowser, peekChannels) {
         if (showChannelList && showCategoryBrowser && peekChannels.isNotEmpty()) liveVm.ensureNowPlaying(peekChannels)
@@ -950,6 +986,8 @@ fun OwnTVShell(
 
     BackHandler {
         when {
+            // Back from live TV docks the same engine and keeps sound playing.
+            playerMode == PlayerMode.FULLSCREEN && zapSource == MainSection.LIVE_TV && !catchupActive -> dockPlayer()
             playerMode == PlayerMode.FULLSCREEN -> exitPlayer()
             showAvatarPicker -> showAvatarPicker = false
             showPlaylistPicker -> showPlaylistPicker = false
@@ -1405,6 +1443,26 @@ fun OwnTVShell(
                             modifier = Modifier.fillMaxSize(),
                         )
 
+                        selectedSection == MainSection.RECORDINGS -> {
+                            if (remoteDvrSelected) {
+                                tv.own.owntv.features.recordings.DispatcharrTvRecordingsScreen(
+                                    api = dispatcharrApi,
+                                    player = player,
+                                    onFullscreen = { openFullscreen() },
+                                    modifier = Modifier.fillMaxSize(),
+                                )
+                            } else DownloadsScreen(
+                                onFullscreen = { openFullscreen() },
+                                onChildFocused = { focusedLayer = ShellLayer.CONTENT },
+                                onOpenGuide = { onSelectSection(MainSection.EPG) },
+                                restoreFocus = restoreFocus,
+                                onRestored = { restoreFocus = false },
+                                onEntryHook = { downloadsEntry = it },
+                                contentStart = if (navStyle == tv.own.owntv.core.settings.SettingsRepository.NavStyle.DOCKED) 64.mpx else 150.mpx,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
+
                         selectedSection == MainSection.DOWNLOADS -> DownloadsScreen(
                             onFullscreen = { openFullscreen() },
                             onChildFocused = { focusedLayer = ShellLayer.CONTENT },
@@ -1484,6 +1542,10 @@ fun OwnTVShell(
                 length = navLength,
                 selected = selectedSection,
                 visibleSections = visibleSections,
+                // Dynamic keeps the developer's original content-based order.
+                navOrder = if (navMenuMode ==
+                    tv.own.owntv.core.settings.SettingsRepository.NavMenuMode.STATIC
+                ) navOrder else MainSection.browseOrder,
                 onSelect = selectFromNav,
                 count = { section -> railCounts[section]?.takeIf { it > 0 } },
                 detail = { section -> railDetail(section, railDetails) },
@@ -1499,7 +1561,7 @@ fun OwnTVShell(
                     MainSection.HOME -> homeEntry
                     MainSection.EPG, MainSection.LIVE_TV -> guideEntry
                     MainSection.MOVIES, MainSection.SERIES -> vodEntry
-                    MainSection.DOWNLOADS -> downloadsEntry
+                    MainSection.DOWNLOADS, MainSection.RECORDINGS -> downloadsEntry
                     MainSection.SEARCH -> searchEntry
                     MainSection.MORE -> moreEntry
                     MainSection.SPORTS -> sportsEntry
@@ -1734,7 +1796,7 @@ fun OwnTVShell(
                 }
                 PlayerHud(
                     player = if (liveOnExo) liveVm.previewEngine else mpvEngine, // HUD drives the active engine
-                    onBack = exitPlayer,
+                    onBack = if (isTunedLive) dockPlayer else exitPlayer,
                     onPip = dockPlayer, // PiP/dock works for live on either engine now
                     onAudioMode = toAudioMode,
                     // The channel-list overlay draws ABOVE the HUD; while it's open the HUD goes inert so
@@ -1867,10 +1929,33 @@ fun OwnTVShell(
                     onOtherChannels = matchSession?.takeIf { it.options.size > 1 }?.let { { showOtherChannels = true } },
                     otherChannelsCount = (matchSession?.options?.size ?: 1) - 1,
                     onToastOk = goalToast?.let { a -> { switchToMatch(a.match) } },
-                    // The channel's other versions, read when the button is pressed; a pick is an
-                    // ordinary tune, the same as picking it in the channel list.
+                    // Use the same stable Dispatcharr selector identity as Mobile. Player
+                    // recompositions must not restart its API load or scroll the Sources menu
+                    // back to OwnTV's alternate channels. A configured but mismatched URL gets
+                    // a visible diagnostic, never a silent playlist fallback.
                     sources = previewChannel?.takeIf { isTunedLive }?.let { ch ->
-                        tv.own.owntv.player.HudSources(load = { channelVersions.of(ch) }, playingId = ch.id, onPick = liveVm::ensurePlaying)
+                        val api = dispatcharrApi
+                        val server = dispatcharrConnection?.origin
+                        val remote = remember(api, server, ch.id, ch.streamUrl) {
+                            if (api == null || server == null) null
+                            else {
+                                val supported =
+                                    tv.own.owntv.core.dispatcharr.DispatcharrChannelUrls.parseForServer(ch.streamUrl, server) != null ||
+                                        tv.own.owntv.core.dispatcharr.DispatcharrXtreamChannelUrls.parseForServer(ch.streamUrl, server) != null
+                                if (supported) tv.own.owntv.player.HudDispatcharrSources(
+                                    load = { api.sourcesFor(ch.streamUrl) },
+                                    onPick = { streamId -> api.switch(ch.streamUrl, streamId) },
+                                ) else tv.own.owntv.player.HudDispatcharrSources(unavailable = true)
+                            }
+                        }
+                        remember(ch, channelVersions, liveVm, remote) {
+                            tv.own.owntv.player.HudSources(
+                                load = { channelVersions.of(ch) },
+                                playingId = ch.id,
+                                onPick = liveVm::ensurePlaying,
+                                dispatcharr = remote,
+                            )
+                        }
                     },
                     modifier = Modifier.fillMaxSize(),
                 )
@@ -2025,6 +2110,7 @@ fun OwnTVShell(
                             currentId = previewChannel?.id,
                             nowPlaying = overlayNowPlaying,
                             nowProgrammes = overlayProgrammes,
+                            onVisibleChannels = { visible -> liveVm.ensureNowPlaying(visible) },
                             favoriteIds = overlayFavoriteIds,
                             playlistMarks = overlayPlaylistMarks,
                             title = zapOverlayTitle,

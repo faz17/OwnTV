@@ -204,6 +204,25 @@ fun EpgScreen(
     onEntryHook: (((() -> Boolean)?) -> Unit)? = null,
 ) {
     val vm: EpgViewModel = koinViewModel()
+    val dispatcharrContext = androidx.compose.ui.platform.LocalContext.current
+    val dispatcharrStore = remember(dispatcharrContext) {
+        tv.own.owntv.features.settings.DispatcharrConnectionStore.get(dispatcharrContext)
+    }
+    val dispatcharrConnection by dispatcharrStore.connection.collectAsStateWithLifecycle()
+    val repository: SettingsRepository = org.koin.compose.koinInject()
+    val backend by repository.recordingBackend.collectAsStateWithLifecycle(SettingsRepository.RecordingBackend.AUTO)
+    val dvrApi = remember(dispatcharrConnection, backend) {
+        if (backend == SettingsRepository.RecordingBackend.LOCAL) null
+        else dispatcharrConnection?.let { connection ->
+            tv.own.owntv.core.dispatcharr.DispatcharrApi(
+                okhttp3.OkHttpClient.Builder().callTimeout(12, java.util.concurrent.TimeUnit.SECONDS).build(),
+                connection.origin, connection.apiKey,
+            )
+        }
+    }
+    LaunchedEffect(dvrApi, dispatcharrConnection, backend) {
+        vm.attachServerDvr(dvrApi, dispatcharrConnection?.origin)
+    }
     // Live TV's view model: its preview player (no second decoder), its category list and playlist marks.
     val liveVm: LiveViewModel = koinViewModel()
     val state by vm.state.collectAsStateWithLifecycle()
@@ -436,10 +455,15 @@ fun EpgScreen(
             SettingsRepository.CatchupPlayer.EXTERNAL -> { vm.noteChannelTuned(ch); vm.playCatchupExternal(ch, p) }
         }
     }
-    // OK on a programme: watch — the archive for one that has been on and can be replayed, else the channel.
+    // On a future EPG slot, OK opens recording choices without tuning the channel.
+    // Only live or catch-up slots are playable from the guide.
     val onOk: (ChannelEntity, EpgProgrammeEntity?) -> Unit = { ch, p ->
         val now = System.currentTimeMillis()
-        if (p != null && p.stopMs <= now && vm.canCatchup(ch, p, now)) playFromStart(ch, p) else watch(ch)
+        when {
+            p != null && p.startMs > now -> recordMenuFor = ch to p
+            p != null && p.stopMs <= now && vm.canCatchup(ch, p, now) -> playFromStart(ch, p)
+            else -> watch(ch)
+        }
     }
 
     /** What [p] on [ch] can do right now — the programme menu, Record ▾ and the buttons on top share it. */
@@ -693,7 +717,15 @@ fun EpgScreen(
                                             else -> { stepTo(to); true }
                                         }
                                     },
-                                    onOk = { p -> if (okPreviews(channel)) liveVm.onChannelFocused(channel) else onOk(channel, p) },
+                                    onOk = { p ->
+                                        if (p != null && p.startMs > System.currentTimeMillis()) {
+                                            onOk(channel, p)
+                                        } else if (okPreviews(channel)) {
+                                            liveVm.onChannelFocused(channel)
+                                        } else {
+                                            onOk(channel, p)
+                                        }
+                                    },
                                     onMenu = { p -> returnTo = null; if (p != null) menuFor = channel to p else channelMenuFor = channel },
                                     onDetails = { p -> if (p != null) { returnTo = null; detailsFor = channel to p } },
                                 )
@@ -919,6 +951,11 @@ private fun GuideRow(
             value = vm.programmesFor(channel)
         }
     }
+    val remoteRows by vm.remoteRecordings.collectAsStateWithLifecycle()
+    val remoteStarts = remember(remoteRows, programmes, channel.id) {
+        programmes.orEmpty().filter { vm.remoteRecordingFor(channel, it) != null }
+            .mapTo(HashSet()) { it.startMs }
+    }
     var focused by remember { mutableStateOf(false) }
     var okDown by remember { mutableStateOf(false) }
     LaunchedEffect(focused, cursorTime, programmes) { if (focused) onShow(programmeAt(programmes, cursorTime)) }
@@ -973,7 +1010,7 @@ private fun GuideRow(
                     now = now,
                     focusTime = if (focused && cellMode) cursorTime else null,
                     catchupIds = catchupIds,
-                    recordingStarts = recordingStarts,
+                    recordingStarts = recordingStarts + remoteStarts,
                     reminderStarts = reminderStarts,
                     scrollPx = scrollPx,
                 )

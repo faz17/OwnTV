@@ -21,6 +21,14 @@ class PlayerChannelKeysTest {
     }
 
     @Test
+    fun dpadDownAlwaysAdvancesAndUpAlwaysGoesBack() {
+        assertEquals(1, dpadZapDirection(up = false))
+        assertEquals(-1, dpadZapDirection(up = true))
+        // Physical channel buttons may still follow the user's swap preference.
+        assertEquals(-1, zapDirection(up = true, PlayerRemoteOptions(swapChannelKeys = true)))
+    }
+
+    @Test
     fun numberKeysTuneOnlyWhenBothSettingsAreOn() {
         assertTrue(numberKeysTune(channelNumbersOn = true, PlayerRemoteOptions()))
         assertFalse(numberKeysTune(channelNumbersOn = true, PlayerRemoteOptions(numberKeysTune = false)))

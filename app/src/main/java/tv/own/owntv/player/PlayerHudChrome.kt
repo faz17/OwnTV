@@ -75,6 +75,8 @@ internal fun TopBar(
     centre: (@Composable () -> Unit)? = null,
     // Live: one more line under the channel name (a Sports match's score).
     below: (@Composable () -> Unit)? = null,
+    // Dispatcharr: the active upstream account/stream, available on OK only.
+    activeSourceName: String? = null,
 ) {
     // Reactive meta so the title row updates instantly on a channel zap (the plain vars aren't observed).
     val meta by player.currentMeta.collectAsStateWithLifecycle()
@@ -98,9 +100,10 @@ internal fun TopBar(
             meta.seasonNumber?.let { add(stringResource(R.string.player_season_number, it)) }
         }.joinToString(stringResource(R.string.content_metadata_separator)).ifBlank { null }
     }
-    Row(modifier = modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.Top) {
-      // Left half. Equal weight to the right half, so [centre] sits on the real midpoint of the screen
-      // rather than the midpoint of whatever space the title happened to leave over.
+    // A readable two-band HUD: channel/codec/active source + clock on top,
+    // Now/Next below with its own width rather than half the same row.
+    Column(modifier = modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 18.dp)) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
       Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
         CircleButton(OwnTVIcon.BACK, size = 40, onClick = onBack)
         Spacer(Modifier.width(14.dp))
@@ -150,6 +153,18 @@ internal fun TopBar(
                     }
                     Text(displayTitle, style = tv.own.owntv.ui.theme.stageText(32, 600), color = hudInk, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
+                // A compact, single line under the channel name avoids competing with
+                // EPG Now/Next on the right, even with larger TV font preferences.
+                if (!activeSourceName.isNullOrBlank()) {
+                    Text(
+                        stringResource(R.string.dispatcharr_hud_source, activeSourceName),
+                        style = tv.own.owntv.ui.theme.stageText(18, 600),
+                        color = tv.own.owntv.ui.theme.stageAccent.accent,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
                 below?.invoke()
             } else {
                 if (showTitleArt && titleArt != null) {
@@ -171,16 +186,25 @@ internal fun TopBar(
                 chipRow()
             }
         }
-      } // end left half
+      } // channel title, stream stats, Dispatcharr source
       if (centre != null) {
-          Spacer(Modifier.width(20.dp))
+          Spacer(Modifier.width(24.dp))
           centre()
-          Spacer(Modifier.width(20.dp))
       }
-      // Right half, pushed to the far edge. Same weight as the left, hence the true centring above.
-      Row(Modifier.weight(1f), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.Top) {
-          if (trailing != null) trailing()
-      }
+    }
+    // The EPG has a separate wide region and can never squeeze "IN DIRETTA DOPO"
+    // to a few pixels next to the clock.
+    if (trailing != null) {
+        Spacer(Modifier.height(12.dp))
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterEnd) {
+            Box(
+                Modifier.fillMaxWidth(
+                    if (tv.own.owntv.ui.theme.LocalTvReadabilityProfile.current ==
+                        tv.own.owntv.ui.theme.TvReadabilityProfile.LARGE) 1f else 0.86f
+                ),
+            ) { trailing() }
+        }
+    }
     }
 }
 
@@ -418,7 +442,7 @@ internal fun BottomBar(
         // slack a focused button expands into, so growth is always toward the centre: the left cluster
         // pushes only the buttons to its right, the right cluster only those to its left. Walk either
         // cluster outward-in and nothing you have already passed ever moves.
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().focusGroup()) {
+        val mediaCluster: @Composable () -> Unit = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 // The ORDER comes from core's canonical list, not from the order these lines
                 // happen to be written in. Each control keeps its own composable and its own
@@ -479,7 +503,8 @@ internal fun BottomBar(
                     }
                 }
             }
-            Spacer(Modifier.weight(1f))
+        }
+        val toolsCluster: @Composable () -> Unit = {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 // The ORDER is core's, exactly as in the media cluster above. Each control
                 // keeps its own composable and condition; only the sequence is shared.
@@ -573,6 +598,21 @@ internal fun BottomBar(
                         -> Unit
                     }
                 }
+            }
+        }
+        // Keep every existing command and all of its shortcuts. Only the presentation
+        // changes: Comfort/Large use two rows of larger focusable controls.
+        if (tv.own.owntv.ui.theme.LocalTvReadabilityProfile.current ==
+            tv.own.owntv.ui.theme.TvReadabilityProfile.STANDARD) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().focusGroup()) {
+                mediaCluster()
+                Spacer(Modifier.weight(1f))
+                toolsCluster()
+            }
+        } else {
+            Column(Modifier.fillMaxWidth().focusGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                mediaCluster()
+                toolsCluster()
             }
         }
     }

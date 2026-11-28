@@ -284,7 +284,7 @@ internal fun SpeedButton(label: String, active: Boolean, toolLabel: String, onCl
     StageSurface(
         onClick = onClick,
         radius = 12.dp,
-        modifier = Modifier.heightIn(min = 44.dp),
+        modifier = Modifier.heightIn(min = tv.own.owntv.ui.theme.LocalTvReadabilityProfile.current.controlDp.dp),
         // Focus as light: the accent rim, a wash of it and a soft glow, all from the accent that reads over video.
         focusStyle = StageFocus.FX,
         accent = hudFocus(ring = hudAccent),
@@ -315,7 +315,7 @@ internal fun EngineToggle(label: String, active: Boolean, toolLabel: String, onC
     StageSurface(
         onClick = onClick,
         radius = 12.dp,
-        modifier = Modifier.heightIn(min = 44.dp),
+        modifier = Modifier.heightIn(min = tv.own.owntv.ui.theme.LocalTvReadabilityProfile.current.controlDp.dp),
         // Focus as light: the accent rim, a wash of it and a soft glow, all from the accent that reads over video.
         focusStyle = StageFocus.FX,
         accent = hudFocus(ring = hudAccent),
@@ -356,7 +356,8 @@ internal fun CtrlButton(
         onLongClick = onLongClick,
         radius = 12.dp,
         // A square 44 dp while collapsed; focus lets it grow sideways to fit its label.
-        modifier = Modifier.height(44.dp).widthIn(min = 44.dp),
+        modifier = Modifier.height(tv.own.owntv.ui.theme.LocalTvReadabilityProfile.current.controlDp.dp)
+            .widthIn(min = tv.own.owntv.ui.theme.LocalTvReadabilityProfile.current.controlDp.dp),
         // Focus as light: the accent rim, a wash of it and a soft glow, all from the accent that reads over video.
         focusStyle = StageFocus.FX,
         accent = hudFocus(ring = hudAccent),
@@ -366,7 +367,10 @@ internal fun CtrlButton(
         val tint = if (active) activeTint else if (focused) hudInk else hudInk.copy(alpha = 0.78f)
         Row(Modifier.padding(horizontal = pad), verticalAlignment = Alignment.CenterVertically) {
             Box(contentAlignment = Alignment.Center) {
-                OwnTVIcon(icon, tint = tint, filled = true, modifier = Modifier.size(22.dp))
+                OwnTVIcon(icon, tint = tint, filled = true, modifier = Modifier.size(
+                    if (tv.own.owntv.ui.theme.LocalTvReadabilityProfile.current ==
+                        tv.own.owntv.ui.theme.TvReadabilityProfile.STANDARD) 22.dp else 28.dp
+                ))
                 // Collapsed, the count sits on the icon's corner; expanded it moves inline after the
                 // label instead, where it no longer covers a third of the glyph.
                 if (badge != null && !focused) {

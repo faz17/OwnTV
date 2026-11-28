@@ -1,0 +1,244 @@
+name: OwnTV Dispatcharr - test APK
+
+# This experimental workflow compiles the two forks together.
+# It never publishes releases and never touches the main branch.
+on:
+  push:
+    branches:
+      - feature/dispatcharr-source-switch
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  statuses: write
+
+concurrency:
+  group: dispatcharr-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-apk:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      - name: Checkout TV fork
+        uses: actions/checkout@v4
+        with:
+          path: OwnTV
+          persist-credentials: false
+
+      - name: Checkout matching Core fork branch
+        uses: actions/checkout@v4
+        with:
+          repository: faz17/OwnTV_Core
+          ref: feature/dispatcharr-source-switch
+          path: OwnTV_Core
+          persist-credentials: false
+
+      - name: Set up JDK 25
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Check Core tests
+        working-directory: OwnTV_Core
+        run: |
+          chmod +x ./gradlew
+          set -o pipefail
+          for attempt in 1 2 3; do
+            if ./gradlew :core:testDebugUnitTest :player-core:testDebugUnitTest --console=plain --no-daemon 2>&1 | tee core-test.log; then
+              break
+            fi
+            if [ "$attempt" -lt 3 ] && grep -Eq 'status code 429|Too Many Requests' core-test.log; then
+              echo "::warning::Maven Central HTTP 429: retry $((attempt + 1))/3"
+              sleep $((attempt * 30))
+            else
+              exit 1
+            fi
+          done
+
+      # PRs stay testable without secrets; only branch pushes can publish signed APKs.
+      - name: Prepare permanent TV signing certificate
+        if: github.event_name == 'push'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASSWORD" ]; then
+            echo "::warning::TV repository signing secrets missing; build APK for Actions only, do not publish a Fire TV release."
+            echo "TV_SIGNING_READY=false" >> "$GITHUB_ENV"
+          else
+            printf '%s' "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/owntv-tv-signing.keystore"
+            echo "KEYSTORE_FILE=$RUNNER_TEMP/owntv-tv-signing.keystore" >> "$GITHUB_ENV"
+            echo "OWNTV_SIGN_DEBUG_WITH_RELEASE_KEY=true" >> "$GITHUB_ENV"
+            echo "TV_SIGNING_READY=true" >> "$GITHUB_ENV"
+          fi
+
+      - name: Compile Android TV debug APK against local Core
+        working-directory: OwnTV
+        env:
+          CORE_DIR: ${{ github.workspace }}/OwnTV_Core
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          chmod +x ./gradlew
+          # Above the first stable v6.0.0 code (300000 + run number).
+          # Otherwise Android refuses to install this preview over the existing Fire TV APK.
+          echo "VERSION_CODE=$((400000 + ${GITHUB_RUN_NUMBER}))" >> "$GITHUB_ENV"
+          export VERSION_CODE=$((400000 + ${GITHUB_RUN_NUMBER}))
+          export VERSION_NAME="6.0.1-preview.${GITHUB_RUN_NUMBER}"
+          set -o pipefail
+          ./gradlew :app:assembleStandardDebug "-Powntv.corePath=$CORE_DIR" --stacktrace --no-daemon 2>&1 | tee tv-build.log
+
+      - name: Verify TV APK signature
+        if: github.event_name == 'push' && env.TV_SIGNING_READY == 'true'
+        run: |
+          set -euo pipefail
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          APK=$(find OwnTV/app/build/outputs/apk/standard/debug -name '*.apk' -type f | head -n 1)
+          test -n "$APKSIGNER" && test -n "$APK"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+      - name: Prepare Fire TV direct-download APK
+        if: github.event_name == 'push' && env.TV_SIGNING_READY == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          APK=$(find OwnTV/app/build/outputs/apk/standard/debug -name '*.apk' -type f | head -n 1)
+          cp "$APK" dist/OwnTV-Dispatcharr-FireTV.apk
+
+      # Preserve the signed installer even if publishing a GitHub Release fails.
+      # The Actions artifact is a ZIP, not a direct Downloader URL.
+      - name: Upload signed Fire TV APK
+        if: github.event_name == 'push' && env.TV_SIGNING_READY == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: OwnTV-Dispatcharr-FireTV-signed
+          path: dist/OwnTV-Dispatcharr-FireTV.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # The first stable fork release is immutable; later pushes continue to
+      # update only the preview release, not replace an installed version.
+      - name: Check initial fork release
+        if: github.event_name == 'push' && env.TV_SIGNING_READY == 'true'
+        id: first_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v6.0.0 --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "create=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "create=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build signed Fire TV v6.0.0 release
+        if: github.event_name == 'push' && env.TV_SIGNING_READY == 'true' && steps.first_release.outputs.create == 'true'
+        working-directory: OwnTV
+        env:
+          CORE_DIR: ${{ github.workspace }}/OwnTV_Core
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          export VERSION_CODE=$((300000 + ${GITHUB_RUN_NUMBER}))
+          export VERSION_NAME=6.0.0
+          ./gradlew :app:lintStandardDebug :app:assembleStandardRelease "-Powntv.corePath=$CORE_DIR" --stacktrace --no-daemon
+          APK=$(find app/build/outputs/apk/standard/release -name '*.apk' -type f | head -n 1)
+          test -n "$APK"
+          mkdir -p ../dist
+          cp "$APK" ../dist/OwnTV-FireTV-v6.0.0.apk
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
+          "$APKSIGNER" verify --print-certs ../dist/OwnTV-FireTV-v6.0.0.apk
+
+      - name: Publish first versioned Fire TV fork release
+        if: github.event_name == 'push' && env.TV_SIGNING_READY == 'true' && steps.first_release.outputs.create == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: v6.0.0
+          target_commitish: ${{ github.sha }}
+          name: OwnTV Fire TV Dispatcharr v6.0.0
+          prerelease: false
+          make_latest: true
+          files: dist/OwnTV-FireTV-v6.0.0.apk
+          fail_on_unmatched_files: true
+          body: |
+            First versioned release of the faz17 Fire TV fork, based on the official OwnTV.
+            Includes Dispatcharr server DVR, source switching, shared recordings, compact
+            poster grid/list and Italian labels. Remote-control navigation uses the D-pad.
+
+            OwnTV's in-app update checker uses faz17/OwnTV releases in this fork.
+            New official upstream changes are merged and checked before inclusion.
+            Installation requires the same permanent signing certificate for in-place upgrades.
+            Download the APK directly from the Assets section using Downloader on Fire TV.
+
+      - name: Publish Fire TV preview release for Downloader
+        if: github.event_name == 'push' && env.TV_SIGNING_READY == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: dispatcharr-tv-preview
+          target_commitish: ${{ github.sha }}
+          name: OwnTV Android TV - Dispatcharr preview
+          prerelease: true
+          make_latest: false
+          files: dist/OwnTV-Dispatcharr-FireTV.apk
+          overwrite_files: true
+          body: |
+            Experimental Android TV / Fire Stick build from feature/dispatcharr-source-switch.
+            Signed with the repository's permanent certificate. The asset can be downloaded
+            directly on Fire TV using Downloader.
+
+      - name: Upload experimental APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: OwnTV-Dispatcharr-experimental-debug
+          path: OwnTV/app/build/outputs/apk/standard/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Publish first TV build error
+        if: ${{ failure() && github.event_name == 'push' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          ERROR=""
+          for file in OwnTV_Core/core-test.log OwnTV/tv-build.log; do
+            if [ -f "$file" ]; then
+              ERROR=$(grep -E -m 1 '^e: |^error: |^FAILURE:|^> Task .*FAILED|^Execution failed for task|Unresolved reference' "$file" || true)
+              if [ -n "$ERROR" ]; then break; fi
+            fi
+          done
+          ERROR="${ERROR:-TV build failed (see Actions report)}"
+          ERROR="${ERROR:0:130}"
+          gh api --method POST "repos/$GITHUB_REPOSITORY/statuses/$GITHUB_SHA" \
+            -f state=failure -f context=diagnostics/owntv-tv-build -f description="$ERROR"
+
+      - name: Upload error reports
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: OwnTV-Dispatcharr-build-reports
+          path: |
+            OwnTV_Core/core/build/reports/tests/**
+            OwnTV_Core/player-core/build/reports/tests/**
+            OwnTV/app/build/reports/**
+          if-no-files-found: ignore

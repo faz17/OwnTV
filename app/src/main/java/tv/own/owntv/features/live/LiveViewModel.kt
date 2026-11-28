@@ -2,6 +2,7 @@
 
 package tv.own.owntv.features.live
 
+import tv.own.owntv.R
 import tv.own.owntv.core.epg.displayLogoUrl
 import android.content.Context
 import android.util.Log
@@ -41,6 +42,14 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.withIndex
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
+import tv.own.owntv.core.dispatcharr.DispatcharrApi
+import tv.own.owntv.core.dispatcharr.DispatcharrChannelUrls
+import tv.own.owntv.core.dispatcharr.DispatcharrXtreamChannelUrls
+import tv.own.owntv.features.settings.DispatcharrConnectionStore
 import kotlinx.coroutines.withContext
 import androidx.paging.filter
 import androidx.paging.map
@@ -134,6 +143,59 @@ class LiveViewModel(
     private val engines: tv.own.owntv.player.PlaybackEngines,
 ) : ViewModel() {
 
+    private val dispatcharrStore = DispatcharrConnectionStore.get(appContext)
+    private val dvrHttp = OkHttpClient.Builder().callTimeout(15, TimeUnit.SECONDS).build()
+    private val dvrMutex = Mutex()
+    private val remoteRecordingIds = MutableStateFlow<Map<Long, Int>>(emptyMap())
+    private val recordingBackend = settings.recordingBackend.stateIn(
+        viewModelScope, SharingStarted.Eagerly, SettingsRepository.RecordingBackend.AUTO,
+    )
+
+    fun isServerDvrConfigured(): Boolean = when (recordingBackend.value) {
+        SettingsRepository.RecordingBackend.LOCAL -> false
+        SettingsRepository.RecordingBackend.DISPATCHARR -> true
+        SettingsRepository.RecordingBackend.AUTO -> dispatcharrStore.connection.value != null
+    }
+
+    fun dispatcharrDvrApi(): DispatcharrApi? = dispatcharrStore.connection.value?.let {
+        DispatcharrApi(dvrHttp, it.origin, it.apiKey)
+    }
+    fun dispatcharrOrigin(): String? = dispatcharrStore.connection.value?.origin
+
+    private fun recorderFor(channel: ChannelEntity): DispatcharrApi {
+        val config = dispatcharrStore.connection.value ?: throw IllegalArgumentException()
+        require(
+            DispatcharrChannelUrls.parseForServer(channel.streamUrl, config.origin) != null ||
+            DispatcharrXtreamChannelUrls.parseForServer(channel.streamUrl, config.origin) != null
+        )
+        return DispatcharrApi(dvrHttp, config.origin, config.apiKey)
+    }
+
+    private fun reportDvrError(error: Throwable) {
+        android.widget.Toast.makeText(
+            appContext, appContext.getString(R.string.dispatcharr_record_failed),
+            android.widget.Toast.LENGTH_LONG,
+        ).show()
+    }
+
+    private suspend fun toggleServerRecording(
+        channel: ChannelEntity,
+        programme: tv.own.owntv.core.parser.XtEpgEntry?,
+    ) = dvrMutex.withLock {
+        val api = recorderFor(channel)
+        val existing = api.activeServerRecording(channel.streamUrl)
+        if (existing != null) {
+            api.stopServerRecording(existing)
+            remoteRecordingIds.value = remoteRecordingIds.value - channel.id
+        } else {
+            val now = System.currentTimeMillis()
+            val until = programme?.stopMs?.takeIf { it > now }
+                ?: now + RecordingSchedule.NO_GUIDE_RUNTIME_MINUTES * 60_000L
+            val id = api.scheduleServerRecording(channel.streamUrl, now, until)
+            remoteRecordingIds.value = remoteRecordingIds.value + (channel.id to id)
+        }
+    }
+
     // --- "Record what I'm watching" --------------------------------------------------------------
 
     /**
@@ -164,6 +226,11 @@ class LiveViewModel(
      */
     fun togglePlayerRecording(channel: ChannelEntity) {
         viewModelScope.launch {
+            if (isServerDvrConfigured()) {
+                runCatching { toggleServerRecording(channel, nowNext.value?.now) }
+                    .onFailure(::reportDvrError)
+                return@launch
+            }
             val open = _playerRecording.value
             if (open != null) {
                 recordings.stop(open)
@@ -186,6 +253,12 @@ class LiveViewModel(
      */
     fun recordNow(channel: ChannelEntity) {
         viewModelScope.launch {
+            if (isServerDvrConfigured()) {
+                runCatching {
+                    toggleServerRecording(channel, epgReader.nowNext(channel, custom.value, epgOffset.value)?.now)
+                }.onFailure(::reportDvrError)
+                return@launch
+            }
             val pid = currentProfileId() ?: return@launch
             // The programme is only known for the channel the guide pane is showing; from the list
             // this is a channel like any other, so its own now-programme is looked up here.
@@ -194,13 +267,26 @@ class LiveViewModel(
     }
 
     /** Channels with a recording running right now, so their menu offers Stop instead of Record. */
-    val recordingChannelIds: StateFlow<Set<Long>> = recordings.observeRunning()
-        .map { rows -> rows.mapTo(HashSet()) { it.channelId } }
+    val recordingChannelIds: StateFlow<Set<Long>> = combine(
+        recordings.observeRunning().map { rows -> rows.mapTo(HashSet()) { it.channelId } },
+        remoteRecordingIds,
+    ) { local, remote -> local + remote.keys }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     /** Stop the running recording(s) of this channel, keeping what was captured. */
     fun stopRecordingOn(channel: ChannelEntity) {
         viewModelScope.launch {
+            if (isServerDvrConfigured()) {
+                runCatching {
+                    dvrMutex.withLock {
+                        val api = recorderFor(channel)
+                        val active = api.activeServerRecording(channel.streamUrl) ?: remoteRecordingIds.value[channel.id]
+                        if (active != null) api.stopServerRecording(active)
+                        remoteRecordingIds.value = remoteRecordingIds.value - channel.id
+                    }
+                }.onFailure(::reportDvrError)
+                return@launch
+            }
             recordings.observeRunning().first().filter { it.channelId == channel.id }.forEach { row ->
                 recordings.stop(row)
                 if (_playerRecording.value?.id == row.id) _playerRecording.value = null
@@ -210,6 +296,7 @@ class LiveViewModel(
 
     /** What already claims this channel's playlist over the window — the clash the dialog warns about. */
     suspend fun recordingClashes(channel: ChannelEntity, startMs: Long, stopMs: Long): List<tv.own.owntv.core.database.entity.RecordingEntity> {
+        if (isServerDvrConfigured()) return emptyList()
         val window = RecordingSchedule.manualWindow(startMs, stopMs, System.currentTimeMillis()) ?: return emptyList()
         return recordings.clashesWith(channel.sourceId, window.first, window.last)
     }
@@ -217,6 +304,12 @@ class LiveViewModel(
     /** Record [channel] between two picked times (#2); [onScheduled] gets the start once it is saved. */
     fun scheduleRecording(channel: ChannelEntity, startMs: Long, stopMs: Long, onScheduled: (Long) -> Unit) {
         viewModelScope.launch {
+            if (isServerDvrConfigured()) {
+                runCatching {
+                    dvrMutex.withLock { recorderFor(channel).scheduleServerRecording(channel.streamUrl, startMs, stopMs) }
+                }.onSuccess { onScheduled(startMs) }.onFailure(::reportDvrError)
+                return@launch
+            }
             val pid = currentProfileId() ?: return@launch
             recordings.scheduleManual(pid, channel, startMs, stopMs)?.let { onScheduled(it.programmeStartMs) }
         }
@@ -1178,6 +1271,9 @@ class LiveViewModel(
 
     /** In-pane preview playback (no history) — triggered by the UI after the focus settles. */
     fun playPreview(channel: ChannelEntity) {
+        // A docked live player owns the audio and stream. Never start a muted preview
+        // behind it when browsing returns to the Live TV list.
+        if (miniOpen) return
         // Recorded even when it cannot play (a hidden folder, a one-stream panel): a second OK on it
         // must still open full screen.
         _paneChannel.value = channel

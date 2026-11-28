@@ -14,6 +14,9 @@ import tv.own.owntv.core.theme.AppFontFamily
 import tv.own.owntv.core.theme.FontCustomization
 import tv.own.owntv.core.theme.PopupFontScale
 import tv.own.owntv.core.theme.UiFontScale
+import tv.own.owntv.ui.theme.TvReadabilityProfile
+import tv.own.owntv.ui.theme.LocalTvReadabilityProfile
+import tv.own.owntv.ui.theme.LocalTvReadabilitySetter
 import tv.own.owntv.ui.components.OwnTVIcon
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -32,6 +35,15 @@ fun FontSettingsScreen(
     modifier: Modifier = Modifier,
 ) {
     var editing by remember { mutableStateOf<FontEdit?>(null) }
+    val readability = LocalTvReadabilityProfile.current
+    val setReadability = LocalTvReadabilitySetter.current
+    val readabilityLabel: @Composable (TvReadabilityProfile) -> String = { profile ->
+        stringResource(when (profile) {
+            TvReadabilityProfile.STANDARD -> R.string.tv_readability_standard
+            TvReadabilityProfile.COMFORT -> R.string.tv_readability_comfort
+            TvReadabilityProfile.LARGE -> R.string.tv_readability_large
+        })
+    }
     val first = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { first.requestFocus() } }
     val percent: @Composable (Int) -> String = { stringResource(R.string.common_percent, it) }
@@ -39,10 +51,21 @@ fun FontSettingsScreen(
         parents = listOf(stringResource(R.string.settings_group_appearance)),
         // The row's own name for it ("Fonts & text size"), so the page is called what opened it.
         title = settingWords("fonts", stringResource(R.string.settings_font_customization), null).title,
-        count = pluralStringResource(R.plurals.settings_setting_count, 4, 4),
+        count = pluralStringResource(R.plurals.settings_setting_count, 5, 5),
         onBack = onBack,
         modifier = modifier,
     ) {
+        val readabilityTitle = stringResource(R.string.tv_readability_title)
+        val readabilityValue = SettingValue.Choice(readabilityLabel(readability))
+        StageSettingRow(
+            icon = OwnTVIcon.TEXT_SIZE,
+            title = readabilityTitle,
+            desc = stringResource(R.string.tv_readability_desc),
+            value = readabilityValue,
+            onClick = { editing = FontEdit.READABILITY },
+            help = settingHelp(null, readabilityTitle, stringResource(R.string.tv_readability_desc), readabilityValue, pinnable = false),
+            modifier = Modifier.focusRequester(first),
+        )
         val families = AppFontFamily.entries.map { it.name to familyLabel(it) }
         val fontTitle = stringResource(R.string.settings_main_interface_font)
         val fontValue = SettingValue.Choice(familyLabel(current.mainFamily))
@@ -53,7 +76,6 @@ fun FontSettingsScreen(
             value = fontValue,
             onClick = { editing = FontEdit.FONT },
             help = settingHelp(null, fontTitle, stringResource(R.string.settings_choose_font), fontValue, families.map { it.second }, pinnable = false),
-            modifier = Modifier.focusRequester(first),
         )
         val sizeTitle = stringResource(R.string.settings_font_size)
         val sizeValue = SettingValue.Stepper(percent(current.sizePercent))
@@ -91,6 +113,24 @@ fun FontSettingsScreen(
         )
 
         when (editing) {
+            FontEdit.READABILITY -> PickerDialog(
+                title = readabilityTitle,
+                subtitle = stringResource(R.string.tv_readability_desc),
+                options = TvReadabilityProfile.entries.map { it.name to readabilityLabel(it) },
+                descriptions = TvReadabilityProfile.entries.associate {
+                    it.name to stringResource(when (it) {
+                        TvReadabilityProfile.STANDARD -> R.string.tv_readability_standard_desc
+                        TvReadabilityProfile.COMFORT -> R.string.tv_readability_comfort_desc
+                        TvReadabilityProfile.LARGE -> R.string.tv_readability_large_desc
+                    })
+                },
+                selected = readability.name,
+                onSelect = { selected ->
+                    setReadability(TvReadabilityProfile.valueOf(selected))
+                    editing = null
+                },
+                onDismiss = { editing = null },
+            )
             FontEdit.FONT -> PickerDialog(
                 title = fontTitle,
                 options = families,
@@ -114,4 +154,4 @@ fun FontSettingsScreen(
     }
 }
 
-private enum class FontEdit { FONT, SIZE, POPUP }
+private enum class FontEdit { READABILITY, FONT, SIZE, POPUP }

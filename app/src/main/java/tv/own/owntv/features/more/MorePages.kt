@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
@@ -225,11 +226,22 @@ private val SettingsCards = listOf(
 /** The card last opened, so Back from its group lands on it again rather than on the search field. */
 private var lastOpenedCard: Int? = null
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun SettingsPage(entry: FocusRequester, pinned: Int, onOpenGroup: (Int) -> Unit, onSearch: () -> Unit) {
     val back = lastOpenedCard
     val profiles = tv.own.owntv.features.settings.profileCount()
-    Column(Modifier.fillMaxSize().focusGroup()) {
+    val readability = tv.own.owntv.ui.theme.LocalTvReadabilityProfile.current
+    val cardColumns = if (readability == tv.own.owntv.ui.theme.TvReadabilityProfile.STANDARD) 3 else 2
+    // At 120% UI zoom the twelve cards extend beyond the screen. Keep the entire
+    // grid scrollable so D-pad focus can bring the last rows into view.
+    val scroll = androidx.compose.foundation.rememberScrollState()
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides tv.own.owntv.features.live.edgeScrollSpec,
+    ) {
+    Column(
+        Modifier.fillMaxSize().focusGroup().verticalScroll(scroll).padding(bottom = 36.mpx),
+    ) {
         PageHead(stringResource(R.string.common_nav_settings)) {
             Spacer(Modifier.weight(1f))
             Text(stringResource(R.string.more_settings_pin_hint), style = stageText(17, 500), color = StageColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -246,31 +258,32 @@ internal fun SettingsPage(entry: FocusRequester, pinned: Int, onOpenGroup: (Int)
             }
         }
         Column(Modifier.padding(top = 22.mpx), verticalArrangement = Arrangement.spacedBy(20.mpx)) {
-            SettingsCards.chunked(3).forEach { row ->
+            SettingsCards.chunked(cardColumns).forEach { row ->
                 // 150 at the default font; a larger app font grows the row rather than cutting the
                 // summary, and the row's cards keep one height.
                 Row(Modifier.height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(20.mpx)) {
                     row.forEach { card ->
                         val index = SettingsCards.indexOf(card)
                         StageTile(
-                            modifier = Modifier.weight(1f).heightIn(min = 150.mpx).fillMaxHeight().then(if (index == back) Modifier.focusRequester(entry) else Modifier),
+                            modifier = Modifier.weight(1f).heightIn(min = if (cardColumns == 2) 180.mpx else 150.mpx).fillMaxHeight().then(if (index == back) Modifier.focusRequester(entry) else Modifier),
                             onClick = { lastOpenedCard = index; onOpenGroup(index) },
                             padding = 0.mpx,
                         ) { focused ->
                             Column(Modifier.padding(horizontal = 26.mpx, vertical = 24.mpx)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    OwnTVIcon(card.icon, if (focused) StageColors.Text else StageColors.Muted, Modifier.size(28.mpx))
+                                    OwnTVIcon(card.icon, if (focused) StageColors.Text else StageColors.Muted, Modifier.size(if (cardColumns == 2) 36.mpx else 28.mpx))
                                     Spacer(Modifier.weight(1f))
                                     Text((if (index == 1) profiles else card.count ?: pinned).toString(), style = stageText(17, 700), color = StageColors.Dim)
                                 }
-                                Text(stringResource(card.nameRes), style = stageText(24, 800), color = StageColors.Text, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 14.mpx))
-                                Text(stringResource(card.summaryRes), style = stageText(16, 500), color = StageColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.mpx))
+                                Text(stringResource(card.nameRes), style = stageText(24, 800), color = StageColors.Text, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 14.mpx))
+                                Text(stringResource(card.summaryRes), style = stageText(16, 500), color = StageColors.Muted, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.mpx))
                             }
                         }
                     }
                 }
             }
         }
+    }
     }
 }
 

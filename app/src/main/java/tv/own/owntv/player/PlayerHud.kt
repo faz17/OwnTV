@@ -101,11 +101,37 @@ internal enum class HudDialog { NONE, AUDIO, SUBS, SPEED, ZOOM, QUALITY, VOLUME,
  * [load] is read as the list opens, never on a zap; [playingId] marks the one on screen; [onPick]
  * tunes the pick through Live TV's normal tune.
  */
+/**
+ * Optional server-side source selector. Injected only after the user has enabled a
+ * trusted Dispatcharr connection; otherwise the normal Sources menu is unchanged.
+ */
+class HudDispatcharrSources(
+    // Null for a channel whose playback URL does not belong to the configured server.
+    // Keep this state visible, rather than silently showing unrelated playlist versions.
+    val load: (suspend () -> tv.own.owntv.core.dispatcharr.DispatcharrApi.ChannelSources)? = null,
+    val onPick: (suspend (Int) -> Unit)? = null,
+    val unavailable: Boolean = false,
+)
+
 class HudSources(
     val load: suspend () -> List<tv.own.owntv.core.live.ChannelVersion>,
     val playingId: Long,
     val onPick: (tv.own.owntv.core.database.entity.ChannelEntity) -> Unit,
+    val dispatcharr: HudDispatcharrSources? = null,
 )
+
+/** User-facing identity of the upstream currently reported as active by Dispatcharr. */
+internal fun activeDispatcharrSourceName(
+    info: tv.own.owntv.core.dispatcharr.DispatcharrApi.ChannelSources,
+    separator: String,
+): String? {
+    val stream = info.streams.firstOrNull { it.id == info.activeStreamId } ?: return null
+    val names = listOfNotNull(
+        stream.providerAccountName?.trim()?.takeIf { it.isNotBlank() },
+        stream.name.trim().takeIf { it.isNotBlank() },
+    ).distinct()
+    return names.joinToString(separator).takeIf { it.isNotBlank() }
+}
 
 /** The guide's answer for "Go back to…"'s first row; held in a box so "answered: no row" differs from "not answered yet". */
 private class Lookup(val start: tv.own.owntv.core.live.CatchupProgrammeStart?)
@@ -290,6 +316,20 @@ fun PlayerHud(
 
     var controlsVisible by remember { mutableStateOf(true) }
     var showInfo by remember { mutableStateOf(false) } // stream technical-info overlay
+    // Read the ACTIVE Dispatcharr upstream only when the HUD is shown (OK), not every
+    // player frame or guide tick. Refresh when returning from the Sources selector;
+    // the account and stream name may change without changing the playback URL.
+    val activeSourceUnknown = stringResource(R.string.dispatcharr_hud_unknown)
+    val activeSourceError = stringResource(R.string.dispatcharr_hud_error)
+    val sourceNameSeparator = stringResource(R.string.content_metadata_separator)
+    val activeSourceName by produceState<String?>(
+        null, controlsVisible, sources?.dispatcharr, dialog,
+    ) {
+        if (!controlsVisible || dialog != HudDialog.NONE) return@produceState
+        val fetch = sources?.dispatcharr?.load ?: return@produceState
+        value = runCatching { activeDispatcharrSourceName(fetch(), sourceNameSeparator) }
+            .fold(onSuccess = { it ?: activeSourceUnknown }, onFailure = { activeSourceError })
+    }
     // Used only by "Report this stream", which writes the current readout into the playback log.
     val reportContext = androidx.compose.ui.platform.LocalContext.current
     val reportResources = androidx.compose.ui.platform.LocalResources.current
@@ -583,11 +623,8 @@ fun PlayerHud(
                 // Up/Down navigate the controls) —
                 // this is the only way to change channels on remotes without CH keys (e.g. Fire TV).
                 //
-                // Direction is channel-number order, not list-position order: "up" (CH+, D-pad Up) is
-                // the NEXT channel — further down an ascending list, delta +1 — matching the
-                // de facto TV convention (Live Channels, YouTube TV, Pluto TV). CH and D-pad keys move together:
-                // Swap channel up/down flips both (see zapDirection), never the media keys. Wrapping is
-                // intended: CH-/Down from the first channel lands on the last, and vice versa.
+                // D-pad follows the visible list: Down selects the NEXT channel (+1), Up the
+                // PREVIOUS (-1). Physical CH+/CH- keep their separate, configurable convention.
                 canZap && e.key == Key.MediaNext -> { zap(1); true }
                 canZap && e.key == Key.MediaPrevious -> { zap(-1); true }
                 //
@@ -597,7 +634,7 @@ fun PlayerHud(
                 !controlsVisible && isLive && (e.key == Key.DirectionUp || e.key == Key.DirectionDown) -> {
                     val up = e.key == Key.DirectionUp
                     when (remoteOptions.dpadUpDown) {
-                        PlayerDpadUpDownAction.ZAP -> { if (canZap) zap(zapDirection(up, remoteOptions)); canZap }
+                        PlayerDpadUpDownAction.ZAP -> { if (canZap) zap(dpadZapDirection(up)); canZap }
                         PlayerDpadUpDownAction.CONTROLS_AND_HISTORY -> {
                             if (up && onOpenHistoryList != null) onOpenHistoryList() else controlsVisible = true
                             true
@@ -716,6 +753,7 @@ fun PlayerHud(
                 player, isLive, listOfNotNull(engineChip) + streamChips.ifEmpty { listOfNotNull(videoRes) }, duration, onBack,
                 modifier = Modifier.align(Alignment.TopStart),
                 below = matchLine,
+                activeSourceName = activeSourceName,
                 trailing = if (error == null) liveEpgCard else null,
                 // Hidden behind an error overlay along with the rest of the chrome: a clock ticking
                 // over a failure message just draws the eye to the wrong thing.

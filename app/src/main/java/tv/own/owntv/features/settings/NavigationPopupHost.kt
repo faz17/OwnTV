@@ -14,6 +14,7 @@ internal fun NavigationPopupHost(settingsVm: SettingsViewModel, onDismiss: () ->
     val navHideAfterMs by settingsVm.navHideAfterMs.collectAsStateWithLifecycle()
     val navMenuMode by settingsVm.navMenuMode.collectAsStateWithLifecycle()
     val navMenuHidden by settingsVm.navMenuHidden.collectAsStateWithLifecycle()
+    val navMenuOrder by settingsVm.navMenuOrder.collectAsStateWithLifecycle()
     NavigationSettingsPopup(
         style = navStyle,
         onStyle = settingsVm::setNavStyle,
@@ -28,6 +29,8 @@ internal fun NavigationPopupHost(settingsVm: SettingsViewModel, onDismiss: () ->
         menuMode = navMenuMode,
         onMenuMode = settingsVm::setNavMenuMode,
         hiddenSections = navMenuHidden,
+        navOrder = navMenuOrder,
+        onMoveSection = settingsVm::moveNavSection,
         onSectionHidden = settingsVm::setNavSectionHidden,
         onDismiss = onDismiss,
     )
