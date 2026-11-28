@@ -607,7 +607,7 @@ fun PlayerHud(
                 !controlsVisible && isLive && (e.key == Key.DirectionUp || e.key == Key.DirectionDown) -> {
                     val up = e.key == Key.DirectionUp
                     when (remoteOptions.dpadUpDown) {
-                        PlayerDpadUpDownAction.ZAP -> { if (canZap) zap(if (up) -1 else 1); canZap }
+                        PlayerDpadUpDownAction.ZAP -> { if (canZap) zap(dpadZapDirection(up)); canZap }
                         PlayerDpadUpDownAction.CONTROLS_AND_HISTORY -> {
                             if (up && onOpenHistoryList != null) onOpenHistoryList() else controlsVisible = true
                             true
