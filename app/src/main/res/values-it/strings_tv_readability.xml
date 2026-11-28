@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tv_readability_title">Leggibilità TV</string>
+    <string name="tv_readability_desc">Menu e comandi più grandi, con schermate adattive</string>
+    <string name="tv_readability_standard">Standard</string>
+    <string name="tv_readability_comfort">Comfort</string>
+    <string name="tv_readability_large">Grandi</string>
+    <string name="tv_readability_standard_desc">Dimensioni originali e comandi del player su una riga</string>
+    <string name="tv_readability_comfort_desc">Consigliato dal divano: testi più grandi e comandi del player su due righe</string>
+    <string name="tv_readability_large_desc">Testi e comandi ancora più grandi, con menu scorrevoli</string>
+</resources>

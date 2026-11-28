@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tv_readability_title">TV readability</string>
+    <string name="tv_readability_desc">Larger menus and player controls without clipping the TV screen</string>
+    <string name="tv_readability_standard">Standard</string>
+    <string name="tv_readability_comfort">Comfort</string>
+    <string name="tv_readability_large">Large</string>
+    <string name="tv_readability_standard_desc">Original text density and single-row player controls</string>
+    <string name="tv_readability_comfort_desc">Recommended for the sofa: larger text and two-row player controls</string>
+    <string name="tv_readability_large_desc">Largest text and controls, with scrollable menus</string>
+</resources>

@@ -245,7 +245,7 @@ val stageAccent: StageAccent
 @ReadOnlyComposable
 fun stageText(size: Number, weight: Int, letterSpacing: TextUnit = TextUnit.Unspecified) = TextStyle(
     fontFamily = LocalMainFontFamily.current,
-    fontSize = size.mpxSp,
+    fontSize = (size.toFloat() * LocalTvReadabilityProfile.current.textScale).mpxSp,
     fontWeight = FontWeight(weight),
     letterSpacing = letterSpacing,
 )

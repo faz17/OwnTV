@@ -47,6 +47,9 @@ import tv.own.owntv.ui.theme.LocalBlurredBackdrop
 import tv.own.owntv.ui.theme.LocalGlass
 import tv.own.owntv.ui.theme.LocalUiFontScaleFactor
 import tv.own.owntv.ui.theme.OwnTVTheme
+import tv.own.owntv.ui.theme.TvReadabilityProfile
+import tv.own.owntv.ui.theme.LocalTvReadabilityProfile
+import tv.own.owntv.ui.theme.LocalTvReadabilitySetter
 import tv.own.owntv.core.theme.UiFontScale
 import tv.own.owntv.core.theme.UiZoom
 
@@ -278,6 +281,16 @@ open class MainActivity : ComponentActivity() {
             val focusHighlightWidth by viewModel.focusHighlightWidth.collectAsStateWithLifecycle()
             val uiZoomPercent by viewModel.uiZoomPercent.collectAsStateWithLifecycle()
             val fontCustomization by viewModel.fontCustomization.collectAsStateWithLifecycle()
+            val readabilityPrefs = remember {
+                getSharedPreferences("owntv_tv_readability", android.content.Context.MODE_PRIVATE)
+            }
+            var tvReadability by remember {
+                mutableStateOf(TvReadabilityProfile.fromStored(readabilityPrefs.getString("profile", null)))
+            }
+            val onSetTvReadability: (TvReadabilityProfile) -> Unit = { value ->
+                readabilityPrefs.edit().putString("profile", value.name).apply()
+                tvReadability = value
+            }
             val animationLevel by viewModel.animationLevel.collectAsStateWithLifecycle()
             // Animations Off also stills the launch screen. Android shows it before the app runs, so the
             // choice can only be handed over for the next launch, and only from Android 13 on.
@@ -415,6 +428,8 @@ open class MainActivity : ComponentActivity() {
                         base.fontScale * UiFontScale.factor(fontCustomization.sizePercent),
                     ),
                     LocalUiFontScaleFactor provides UiFontScale.factor(fontCustomization.sizePercent),
+                    LocalTvReadabilityProfile provides tvReadability,
+                    LocalTvReadabilitySetter provides onSetTvReadability,
                     LocalGlass provides glassConfig,
                     LocalBlurredBackdrop provides blurred,
                     LocalBackground provides background,

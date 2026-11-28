@@ -325,7 +325,9 @@ fun StageSettingsPage(
                         .width(w * 696)
                         .heightIn(max = maxHeight - 280.mpx)
                         .stageGlass(30.mpx)
-                        .padding(26.mpx),
+                        .padding(26.mpx)
+                        // Long help text scrolls; editor panels manage their own viewport.
+                        .then(if (editor == null) Modifier.verticalScroll(rememberScrollState()) else Modifier),
                 ) {
                     if (editor != null) SettingPanelEditor(editor, help, onClosed = { panel.opener?.let { r -> runCatching { r.requestFocus() } } })
                     else {
@@ -657,7 +659,8 @@ fun StageSettingRow(
         modifier = modifier
             .focusRequester(self)
             .fillMaxWidth()
-            .height(84.mpx)
+            .heightIn(min = if (tv.own.owntv.ui.theme.LocalTvReadabilityProfile.current ==
+                tv.own.owntv.ui.theme.TvReadabilityProfile.STANDARD) 84.mpx else 110.mpx)
             .then(
                 if (onStep != null) {
                     Modifier.onPreviewKeyEvent { e ->
@@ -675,21 +678,22 @@ fun StageSettingRow(
         // While focused the panel follows this row, value changes included.
         if ((focused || keepPanel) && panel != null) androidx.compose.runtime.SideEffect { panel.help = help }
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 22.mpx),
+            Modifier.fillMaxWidth().padding(horizontal = 22.mpx, vertical = 10.mpx),
             horizontalArrangement = Arrangement.spacedBy(18.mpx),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OwnTVIcon(icon, StageColors.Muted, Modifier.size(24.mpx))
+            OwnTVIcon(icon, StageColors.Muted, Modifier.size(if (tv.own.owntv.ui.theme.LocalTvReadabilityProfile.current ==
+                tv.own.owntv.ui.theme.TvReadabilityProfile.STANDARD) 24.mpx else 32.mpx))
             Column(Modifier.weight(1f)) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.mpx), verticalAlignment = Alignment.CenterVertically) {
-                    Text(title, style = stageText(21, 700), color = if (enabled) StageColors.Text else StageColors.Dim, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    Text(title, style = stageText(21, 700), color = if (enabled) StageColors.Text else StageColors.Dim, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
                     if (pinned) Box(Modifier.size(7.mpx).background(a.accent, CircleShape))
                 }
                 if (!desc.isNullOrBlank()) {
                     Text(
                         desc, style = stageText(15.5f, 500),
                         color = if (focused) FocusedDesc else StageColors.Muted,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        maxLines = 2, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(top = 3.mpx),
                     )
                 }
