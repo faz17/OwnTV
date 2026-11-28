@@ -226,6 +226,7 @@ private val SettingsCards = listOf(
 /** The card last opened, so Back from its group lands on it again rather than on the search field. */
 private var lastOpenedCard: Int? = null
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 internal fun SettingsPage(entry: FocusRequester, pinned: Int, onOpenGroup: (Int) -> Unit, onSearch: () -> Unit) {
     val back = lastOpenedCard
