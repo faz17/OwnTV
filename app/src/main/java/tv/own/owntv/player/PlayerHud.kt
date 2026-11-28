@@ -123,13 +123,14 @@ class HudSources(
 /** User-facing identity of the upstream currently reported as active by Dispatcharr. */
 internal fun activeDispatcharrSourceName(
     info: tv.own.owntv.core.dispatcharr.DispatcharrApi.ChannelSources,
+    separator: String,
 ): String? {
     val stream = info.streams.firstOrNull { it.id == info.activeStreamId } ?: return null
     val names = listOfNotNull(
         stream.providerAccountName?.trim()?.takeIf { it.isNotBlank() },
         stream.name.trim().takeIf { it.isNotBlank() },
     ).distinct()
-    return names.joinToString(" · ").takeIf { it.isNotBlank() }
+    return names.joinToString(separator).takeIf { it.isNotBlank() }
 }
 
 /** The guide's answer for "Go back to…"'s first row; held in a box so "answered: no row" differs from "not answered yet". */
@@ -320,12 +321,13 @@ fun PlayerHud(
     // the account and stream name may change without changing the playback URL.
     val activeSourceUnknown = stringResource(R.string.dispatcharr_hud_unknown)
     val activeSourceError = stringResource(R.string.dispatcharr_hud_error)
+    val sourceNameSeparator = stringResource(R.string.content_metadata_separator)
     val activeSourceName by produceState<String?>(
         null, controlsVisible, sources?.dispatcharr, dialog,
     ) {
         if (!controlsVisible || dialog != HudDialog.NONE) return@produceState
         val fetch = sources?.dispatcharr?.load ?: return@produceState
-        value = runCatching { activeDispatcharrSourceName(fetch()) }
+        value = runCatching { activeDispatcharrSourceName(fetch(), sourceNameSeparator) }
             .fold(onSuccess = { it ?: activeSourceUnknown }, onFailure = { activeSourceError })
     }
     // Used only by "Report this stream", which writes the current readout into the playback log.

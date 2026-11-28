@@ -32,23 +32,24 @@ class PlayerHudSourcesTest {
             "Fabio · Nexon",
             activeDispatcharrSourceName(
                 sources(2, stream(1, "Other", "Elsewhere"), stream(2, "Nexon", "Fabio")),
+                " · ",
             ),
         )
     }
 
     @Test
     fun fallsBackToStreamNameWhenProviderNameIsNotKnown() {
-        assertEquals("Nexon", activeDispatcharrSourceName(sources(2, stream(2, "Nexon"))))
+        assertEquals("Nexon", activeDispatcharrSourceName(sources(2, stream(2, "Nexon")), " · "))
     }
 
     @Test
     fun doesNotInventAnActiveStreamWhenDispatcharrHasNotReportedOne() {
-        assertNull(activeDispatcharrSourceName(sources(null, stream(2, "Nexon", "Fabio"))))
-        assertNull(activeDispatcharrSourceName(sources(99, stream(2, "Nexon", "Fabio"))))
+        assertNull(activeDispatcharrSourceName(sources(null, stream(2, "Nexon", "Fabio")), " · "))
+        assertNull(activeDispatcharrSourceName(sources(99, stream(2, "Nexon", "Fabio")), " · "))
     }
 
     @Test
     fun avoidsRepeatingIdenticalProviderAndStreamNames() {
-        assertEquals("Nexon", activeDispatcharrSourceName(sources(2, stream(2, "Nexon", "Nexon"))))
+        assertEquals("Nexon", activeDispatcharrSourceName(sources(2, stream(2, "Nexon", "Nexon")), " · "))
     }
 }
