@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableIntStateOf
@@ -229,7 +230,15 @@ private var lastOpenedCard: Int? = null
 internal fun SettingsPage(entry: FocusRequester, pinned: Int, onOpenGroup: (Int) -> Unit, onSearch: () -> Unit) {
     val back = lastOpenedCard
     val profiles = tv.own.owntv.features.settings.profileCount()
-    Column(Modifier.fillMaxSize().focusGroup()) {
+    // At 120% UI zoom the twelve cards extend beyond the screen. Keep the entire
+    // grid scrollable so D-pad focus can bring the last rows into view.
+    val scroll = androidx.compose.foundation.rememberScrollState()
+    androidx.compose.runtime.CompositionLocalProvider(
+        androidx.compose.foundation.gestures.LocalBringIntoViewSpec provides tv.own.owntv.features.live.edgeScrollSpec,
+    ) {
+    Column(
+        Modifier.fillMaxSize().focusGroup().verticalScroll(scroll).padding(bottom = 36.mpx),
+    ) {
         PageHead(stringResource(R.string.common_nav_settings)) {
             Spacer(Modifier.weight(1f))
             Text(stringResource(R.string.more_settings_pin_hint), style = stageText(17, 500), color = StageColors.Muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -271,6 +280,7 @@ internal fun SettingsPage(entry: FocusRequester, pinned: Int, onOpenGroup: (Int)
                 }
             }
         }
+    }
     }
 }
 

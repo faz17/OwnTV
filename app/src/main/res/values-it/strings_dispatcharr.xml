@@ -22,6 +22,7 @@
     <string name="dispatcharr_not_configured">Non configurato</string>
     <string name="dispatcharr_configured">Connessione configurata</string>
     <string name="dispatcharr_test">Verifica la connessione API salvata</string>
+    <string name="dispatcharr_backup_key_hint">Per trasferire la chiave API Dispatcharr, includi Impostazioni e proteggi il backup con una password. Senza password la chiave non viene inclusa.</string>
     <string name="dispatcharr_testing">Verifica connessione in corso…</string>
     <string name="dispatcharr_test_success">Connessione API riuscita</string>
     <string name="dispatcharr_test_failed">Connessione API non riuscita</string>

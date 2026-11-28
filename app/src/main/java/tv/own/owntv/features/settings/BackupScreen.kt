@@ -385,7 +385,8 @@ fun BackupScreen(
     exportFolder?.let { folder ->
         BackupPasswordDialog(
             title = stringResource(R.string.settings_backup_encrypt_title),
-            message = stringResource(R.string.settings_backup_encrypt_message),
+            message = stringResource(R.string.settings_backup_encrypt_message) +
+                if (BackupManager.Section.SETTINGS in exportSections) "\n\n" + stringResource(R.string.dispatcharr_backup_key_hint) else "",
             confirmLabel = stringResource(R.string.settings_backup_encrypt_export),
             skipLabel = stringResource(R.string.settings_backup_export_unencrypted),
             onConfirm = { pass -> exportFolder = null; vm.export(folder, exportSections, pass, exportProfiles) },
@@ -432,7 +433,8 @@ fun BackupScreen(
     if (showRemoteExportPassword) {
         BackupPasswordDialog(
             title = stringResource(R.string.settings_backup_encrypt_title),
-            message = stringResource(R.string.settings_backup_encrypt_message),
+            message = stringResource(R.string.settings_backup_encrypt_message) +
+                if (BackupManager.Section.SETTINGS in exportSections) "\n\n" + stringResource(R.string.dispatcharr_backup_key_hint) else "",
             confirmLabel = stringResource(R.string.settings_backup_encrypt_prepare),
             skipLabel = stringResource(R.string.settings_backup_prepare_unencrypted),
             onConfirm = { pass -> showRemoteExportPassword = false; showRemoteExport = true; vm.exportRemote(exportSections, pass, exportProfiles) },
