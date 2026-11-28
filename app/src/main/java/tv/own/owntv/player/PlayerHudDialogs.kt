@@ -366,9 +366,9 @@ internal fun SourcesDialog(sources: HudSources, onDismiss: () -> Unit) {
     var switchingStreamId by remember(dispatcharr) { mutableStateOf<Int?>(null) }
     var switchError by remember(dispatcharr) { mutableStateOf(false) }
     val playingIndex = list.indexOfFirst { it.channel.id == sources.playingId }.coerceAtLeast(0)
-    val activeStreamIndex = remoteStreams?.streams
-        ?.indexOfFirst { it.id == remoteStreams.activeStreamId }
-        ?.coerceAtLeast(0) ?: 0
+    val activeStreamIndex = remoteStreams?.let { server ->
+        server.streams.indexOfFirst { it.id == server.activeStreamId }.coerceAtLeast(0)
+    } ?: 0
 
     LaunchedEffect(sources, remoteStreams, remote?.isFailure, dispatcharr?.unavailable) {
         if (dispatcharr != null) {
@@ -402,7 +402,7 @@ internal fun SourcesDialog(sources: HudSources, onDismiss: () -> Unit) {
                     subtitle = when {
                         dispatcharr.unavailable -> stringResource(R.string.dispatcharr_unsupported_channel)
                         remote == null -> stringResource(R.string.dispatcharr_loading)
-                        remote.isFailure -> stringResource(R.string.dispatcharr_load_error)
+                        remote?.isFailure == true -> stringResource(R.string.dispatcharr_load_error)
                         else -> stringResource(R.string.dispatcharr_sources_hint)
                     },
                     enabled = false,
