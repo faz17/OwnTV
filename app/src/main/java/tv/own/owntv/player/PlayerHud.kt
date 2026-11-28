@@ -120,6 +120,18 @@ class HudSources(
     val dispatcharr: HudDispatcharrSources? = null,
 )
 
+/** User-facing identity of the upstream currently reported as active by Dispatcharr. */
+internal fun activeDispatcharrSourceName(
+    info: tv.own.owntv.core.dispatcharr.DispatcharrApi.ChannelSources,
+): String? {
+    val stream = info.streams.firstOrNull { it.id == info.activeStreamId } ?: return null
+    val names = listOfNotNull(
+        stream.providerAccountName?.trim()?.takeIf { it.isNotBlank() },
+        stream.name.trim().takeIf { it.isNotBlank() },
+    ).distinct()
+    return names.joinToString(" · ").takeIf { it.isNotBlank() }
+}
+
 /** The guide's answer for "Go back to…"'s first row; held in a box so "answered: no row" differs from "not answered yet". */
 private class Lookup(val start: tv.own.owntv.core.live.CatchupProgrammeStart?)
 
@@ -303,6 +315,19 @@ fun PlayerHud(
 
     var controlsVisible by remember { mutableStateOf(true) }
     var showInfo by remember { mutableStateOf(false) } // stream technical-info overlay
+    // Read the ACTIVE Dispatcharr upstream only when the HUD is shown (OK), not every
+    // player frame or guide tick. Refresh when returning from the Sources selector;
+    // the account and stream name may change without changing the playback URL.
+    val activeSourceUnknown = stringResource(R.string.dispatcharr_hud_unknown)
+    val activeSourceError = stringResource(R.string.dispatcharr_hud_error)
+    val activeSourceName by produceState<String?>(
+        null, controlsVisible, sources?.dispatcharr, dialog,
+    ) {
+        if (!controlsVisible || dialog != HudDialog.NONE) return@produceState
+        val fetch = sources?.dispatcharr?.load ?: return@produceState
+        value = runCatching { activeDispatcharrSourceName(fetch()) }
+            .fold(onSuccess = { it ?: activeSourceUnknown }, onFailure = { activeSourceError })
+    }
     // Used only by "Report this stream", which writes the current readout into the playback log.
     val reportContext = androidx.compose.ui.platform.LocalContext.current
     val reportResources = androidx.compose.ui.platform.LocalResources.current
@@ -726,6 +751,7 @@ fun PlayerHud(
                 player, isLive, listOfNotNull(engineChip) + streamChips.ifEmpty { listOfNotNull(videoRes) }, duration, onBack,
                 modifier = Modifier.align(Alignment.TopStart),
                 below = matchLine,
+                activeSourceName = activeSourceName,
                 trailing = if (error == null) liveEpgCard else null,
                 // Hidden behind an error overlay along with the rest of the chrome: a clock ticking
                 // over a failure message just draws the eye to the wrong thing.

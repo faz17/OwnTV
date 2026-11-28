@@ -9,6 +9,9 @@
     <string name="dispatcharr_provider">Provider #%1$d</string>
     <string name="dispatcharr_switching">Switching…</string>
     <string name="dispatcharr_active">Active</string>
+    <string name="dispatcharr_hud_source">Source: %1$s</string>
+    <string name="dispatcharr_hud_unknown">Not detected</string>
+    <string name="dispatcharr_hud_error">Unavailable</string>
     <string name="dispatcharr_switch_error">Could not switch Dispatcharr source</string>
     <string name="dispatcharr_playlist_alternatives">Other OwnTV playlist versions</string>
     <string name="dispatcharr_settings_title" translatable="false">Dispatcharr</string>

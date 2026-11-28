@@ -8,6 +8,9 @@
     <string name="dispatcharr_provider">Fornitore n. %1$d</string>
     <string name="dispatcharr_switching">Cambio sorgente…</string>
     <string name="dispatcharr_active">Attiva</string>
+    <string name="dispatcharr_hud_source">Sorgente: %1$s</string>
+    <string name="dispatcharr_hud_unknown">Non rilevata</string>
+    <string name="dispatcharr_hud_error">Non disponibile</string>
     <string name="dispatcharr_switch_error">Impossibile cambiare la sorgente Dispatcharr</string>
     <string name="dispatcharr_playlist_alternatives">Altre versioni delle playlist OwnTV</string>
     <string name="dispatcharr_settings_description">Configura il cambio di sorgente</string>

@@ -75,6 +75,8 @@ internal fun TopBar(
     centre: (@Composable () -> Unit)? = null,
     // Live: one more line under the channel name (a Sports match's score).
     below: (@Composable () -> Unit)? = null,
+    // Dispatcharr: the active upstream account/stream, available on OK only.
+    activeSourceName: String? = null,
 ) {
     // Reactive meta so the title row updates instantly on a channel zap (the plain vars aren't observed).
     val meta by player.currentMeta.collectAsStateWithLifecycle()
@@ -149,6 +151,18 @@ internal fun TopBar(
                         Spacer(Modifier.width(10.dp))
                     }
                     Text(displayTitle, style = tv.own.owntv.ui.theme.stageText(32, 600), color = hudInk, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                // A compact, single line under the channel name avoids competing with
+                // EPG Now/Next on the right, even with larger TV font preferences.
+                if (!activeSourceName.isNullOrBlank()) {
+                    Text(
+                        stringResource(R.string.dispatcharr_hud_source, activeSourceName),
+                        style = tv.own.owntv.ui.theme.stageText(18, 600),
+                        color = tv.own.owntv.ui.theme.stageAccent.accent,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
                 below?.invoke()
             } else {
